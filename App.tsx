@@ -14,23 +14,23 @@ import DebtorManagement from './components/DebtorManagement';
 import PerformanceModule from './components/PerformanceModule';
 import ProfileModal from './components/ProfileModal';
 import { Truck, Menu, X, CircleHelp, LogOut, ChevronDown, User as UserIcon, Settings, Sparkles } from 'lucide-react';
-import { Vehicle, Language, Driver, FixedRoute, User, UserRole, Debtor } from './types';
+import { Vehicle, Language, Driver, FixedRoute, User, UserRole, Debtor, LicenseType, VehicleType, FuelType } from './types';
 import { translations } from './translations';
 import { getCurrentUser, logout } from './auth';
-import { FLEET_CONFIG, MOCK_DRIVERS, MOCK_FIXED_ROUTES, MOCK_DEBTORS } from './constants';
+import { supabase } from './services/supabaseClient';
 
 type View = 'home' | 'dashboard' | 'fleet' | 'drivers' | 'fixedRoutes' | 'debtors' | 'performance';
 
 function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('home');
-  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   
-  // App Data State geïnitialiseerd met Mock Data (Staat van gister 23:50)
-  const [fleet, setFleet] = useState<Vehicle[]>(FLEET_CONFIG);
-  const [drivers, setDrivers] = useState<Driver[]>(MOCK_DRIVERS);
-  const [fixedRoutes, setFixedRoutes] = useState<FixedRoute[]>(MOCK_FIXED_ROUTES);
-  const [debtors, setDebtors] = useState<Debtor[]>(MOCK_DEBTORS);
+  // App Data State - geïnitialiseerd met lege arrays
+  const [fleet, setFleet] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [fixedRoutes, setFixedRoutes] = useState<FixedRoute[]>([]);
+  const [debtors, setDebtors] = useState<Debtor[]>([]);
   
   // Planning Session State (Sandboxed from main debtors list)
   const [planningSessionDebtors, setPlanningSessionDebtors] = useState<Debtor[]>([]);
@@ -64,6 +64,143 @@ function App() {
     checkSession();
   }, []);
 
+  // Haal data op uit Supabase wanneer gebruiker is ingelogd
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) {
+        setIsLoadingData(false);
+        return;
+      }
+
+      setIsLoadingData(true);
+
+      try {
+        // Haal drivers op
+        const { data: driversData, error: driversError } = await supabase
+          .from('drivers')
+          .select('*')
+          .order('name');
+
+        if (driversError) {
+          console.error('Error fetching drivers:', driversError);
+        } else {
+          const mappedDrivers: Driver[] = (driversData || []).map((d: any) => ({
+            id: d.id,
+            organization_id: d.organization_id,
+            name: d.name,
+            email: d.email || '',
+            phone: d.phone || '',
+            licenses: (d.licenses || []) as LicenseType[],
+            known_route_ids: d.known_route_ids || [],
+            working_days: d.working_days || [1, 2, 3, 4, 5],
+            is_active: d.is_active ?? true,
+            photo_url: d.photo_url,
+            schedule: {} // Wordt later geladen indien nodig
+          }));
+          setDrivers(mappedDrivers);
+        }
+
+        // Haal fixed routes op
+        const { data: routesData, error: routesError } = await supabase
+          .from('fixed_routes')
+          .select('*')
+          .order('name');
+
+        if (routesError) {
+          console.error('Error fetching fixed routes:', routesError);
+        } else {
+          const mappedRoutes: FixedRoute[] = (routesData || []).map((r: any) => ({
+            id: r.id,
+            organization_id: r.organization_id,
+            name: r.name,
+            region: r.region || '',
+            standard_start_time: r.standard_start_time || '08:00',
+            duration_hours: Number(r.duration_hours) || 8,
+            required_license: r.required_license as LicenseType,
+            requires_electric: r.requires_electric || false,
+            color: r.color || 'bg-slate-500',
+            allowed_days: r.allowed_days || [1, 2, 3, 4, 5],
+            capacity: {
+              chilled: r.capacity_chilled || 0,
+              frozen: r.capacity_frozen || 0
+            },
+            assignments: {} // Wordt later geladen indien nodig
+          }));
+          setFixedRoutes(mappedRoutes);
+        }
+
+        // Haal debtors op
+        const { data: debtorsData, error: debtorsError } = await supabase
+          .from('debtors')
+          .select('*')
+          .order('name');
+
+        if (debtorsError) {
+          console.error('Error fetching debtors:', debtorsError);
+        } else {
+          const mappedDebtors: Debtor[] = (debtorsData || []).map((d: any) => ({
+            id: d.id,
+            organization_id: d.organization_id,
+            debtor_number: d.debtor_number,
+            foundation_name: d.foundation_name,
+            name: d.name,
+            address: d.address,
+            postcode: d.postcode,
+            city: d.city,
+            container_location: d.container_location,
+            delivery_days: d.delivery_days || [],
+            time_window_start: d.time_window_start || '08:00',
+            time_window_end: d.time_window_end || '17:00',
+            drop_time_minutes: d.drop_time_minutes || 15,
+            containers_chilled: d.containers_chilled || 0,
+            containers_frozen: d.containers_frozen || 0,
+            fixed_route_id: d.fixed_route_id
+          }));
+          setDebtors(mappedDebtors);
+        }
+
+        // Haal vehicles op
+        const { data: vehiclesData, error: vehiclesError } = await supabase
+          .from('vehicles')
+          .select('*')
+          .order('license_plate');
+
+        if (vehiclesError) {
+          console.error('Error fetching vehicles:', vehiclesError);
+        } else {
+          const mappedVehicles: Vehicle[] = (vehiclesData || []).map((v: any) => ({
+            id: v.id,
+            organization_id: v.organization_id,
+            license_plate: v.license_plate || '',
+            brand: v.brand || '',
+            type: v.type as VehicleType,
+            license_required: v.license_required as LicenseType,
+            capacity: {
+              chilled: v.capacity_chilled || 0,
+              frozen: v.capacity_frozen || 0
+            },
+            fuel_type: v.fuel_type as FuelType,
+            max_range_km: v.max_range_km || 0,
+            consumption_per_100km: Number(v.consumption_per_100km) || 0,
+            fuel_price_per_unit: Number(v.fuel_price_per_unit) || 0,
+            co2_emission_per_km: Number(v.co2_emission_per_km) || 0,
+            is_available: v.is_available ?? true,
+            hourly_rate: Number(v.hourly_rate) || 0,
+            monthly_fixed_cost: Number(v.monthly_fixed_cost) || 0,
+            assigned_driver_id: v.assigned_driver_id
+          }));
+          setFleet(mappedVehicles);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setIsLoadingData(false);
+      }
+    };
+
+    fetchData();
+  }, [currentUser]);
+
   // Check if there's a password reset token in the URL
   const checkPasswordResetToken = () => {
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -78,7 +215,9 @@ function App() {
   };
 
   const handleAddVehicle = (newVehicle: Vehicle) => {
-    setFleet(prev => [...prev, { ...newVehicle, organization_id: 'local-org' }]);
+    if (currentUser) {
+      setFleet(prev => [...prev, { ...newVehicle, organization_id: currentUser.organization_id }]);
+    }
   };
 
   const handleDeleteVehicle = (id: string) => {
@@ -86,7 +225,9 @@ function App() {
   };
 
   const handleAddDriver = (newDriver: Driver) => {
-      setDrivers(prev => [...prev, { ...newDriver, organization_id: 'local-org' }]);
+      if (currentUser) {
+        setDrivers(prev => [...prev, { ...newDriver, organization_id: currentUser.organization_id }]);
+      }
   };
 
   const handleUpdateDriver = (updatedDriver: Driver) => {
@@ -98,7 +239,9 @@ function App() {
   };
 
   const handleAddDebtor = (newDebtor: Debtor) => {
-      setDebtors(prev => [...prev, { ...newDebtor, organization_id: 'local-org' }]);
+      if (currentUser) {
+        setDebtors(prev => [...prev, { ...newDebtor, organization_id: currentUser.organization_id }]);
+      }
   };
 
   const handleUpdateDebtor = (updatedDebtor: Debtor) => {
@@ -217,13 +360,24 @@ function App() {
       </nav>
 
       <main className="flex-grow">
-          {currentView === 'home' && <Home onNavigate={(v: any) => setCurrentView(v)} language={language} />}
-          {currentView === 'dashboard' && <Dashboard vehicles={fleet} language={language} initialDebtors={planningSessionDebtors} setInitialDebtors={setPlanningSessionDebtors} />}
-          {currentView === 'fleet' && <FleetManagement vehicles={fleet} drivers={drivers} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onToggleAvailability={() => {}} language={language}/>}
-          {currentView === 'debtors' && <DebtorManagement language={language} debtors={debtors} fixedRoutes={fixedRoutes} onAddDebtor={handleAddDebtor} onUpdateDebtor={handleUpdateDebtor} onDeleteDebtor={handleDeleteDebtor} onCopyToPlanning={handleCopyToPlanning} />}
-          {currentView === 'drivers' && <DriverPlanner language={language} drivers={drivers} vehicles={fleet} setDrivers={setDrivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} onDeleteDriver={handleDeleteDriver} />}
-          {currentView === 'fixedRoutes' && <FixedRoutePlanner language={language} drivers={drivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} vehicles={fleet} debtors={debtors} onUpdateDebtor={handleUpdateDebtor} />}
-          {currentView === 'performance' && <PerformanceModule language={language} drivers={drivers} fixedRoutes={fixedRoutes} />}
+          {isLoadingData ? (
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+                <p className="text-slate-600 font-medium">Gegevens laden...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {currentView === 'home' && <Home onNavigate={(v: any) => setCurrentView(v)} language={language} />}
+              {currentView === 'dashboard' && <Dashboard vehicles={fleet} language={language} initialDebtors={planningSessionDebtors} setInitialDebtors={setPlanningSessionDebtors} />}
+              {currentView === 'fleet' && <FleetManagement vehicles={fleet} drivers={drivers} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onToggleAvailability={() => {}} language={language}/>}
+              {currentView === 'debtors' && <DebtorManagement language={language} debtors={debtors} fixedRoutes={fixedRoutes} onAddDebtor={handleAddDebtor} onUpdateDebtor={handleUpdateDebtor} onDeleteDebtor={handleDeleteDebtor} onCopyToPlanning={handleCopyToPlanning} />}
+              {currentView === 'drivers' && <DriverPlanner language={language} drivers={drivers} vehicles={fleet} setDrivers={setDrivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} onDeleteDriver={handleDeleteDriver} />}
+              {currentView === 'fixedRoutes' && <FixedRoutePlanner language={language} drivers={drivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} vehicles={fleet} debtors={debtors} onUpdateDebtor={handleUpdateDebtor} />}
+              {currentView === 'performance' && <PerformanceModule language={language} drivers={drivers} fixedRoutes={fixedRoutes} />}
+            </>
+          )}
       </main>
 
       <footer className="bg-white border-t border-slate-200 mt-auto">
