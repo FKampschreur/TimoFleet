@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Truck, Mail, Lock, Loader2, AlertTriangle, ArrowRight, Sparkles, ShieldCheck, Zap, Leaf } from 'lucide-react';
+import { Truck, Mail, Lock, Loader2, AlertTriangle, ArrowRight, Sparkles, ShieldCheck, Zap, Leaf, X, CheckCircle } from 'lucide-react';
 import { Language, User } from '../types';
 import { translations } from '../translations';
 import { login } from '../auth';
+import { supabase } from '../services/supabaseClient';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;
@@ -14,6 +15,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState('');
   const t = translations[language];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,6 +35,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
         setError(err.message || t.login.error);
     } finally {
         setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError('');
+    setResetLoading(true);
+
+    try {
+      const siteUrl = window.location.origin;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${siteUrl}/#type=recovery`
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setResetSuccess(true);
+    } catch (err: any) {
+      console.error("Password Reset Error:", err);
+      setResetError(err.message || 'Er is een fout opgetreden bij het versturen van de reset link.');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -131,7 +161,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
                     <div className="space-y-2">
                         <div className="flex justify-between items-center px-1">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Wachtwoord</label>
-                            <button type="button" className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 transition-colors">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowForgotPassword(true)}
+                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
+                            >
                                 Vergeten?
                             </button>
                         </div>
@@ -190,6 +224,96 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
                 </div>
             </div>
         </div>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+                    <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-900">Wachtwoord vergeten?</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Reset link versturen</p>
+                        </div>
+                        <button 
+                            onClick={() => {
+                                setShowForgotPassword(false);
+                                setResetEmail('');
+                                setResetError('');
+                                setResetSuccess(false);
+                            }} 
+                            className="p-2.5 bg-white rounded-full text-slate-400 hover:text-slate-900 border border-slate-200 transition-all shadow-sm"
+                        >
+                            <X size={18} />
+                        </button>
+                    </div>
+                    <div className="p-8">
+                        {resetSuccess ? (
+                            <div className="text-center">
+                                <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <CheckCircle className="text-emerald-600" size={32} />
+                                </div>
+                                <h4 className="text-lg font-black text-slate-900 mb-2">E-mail verstuurd!</h4>
+                                <p className="text-sm text-slate-600 mb-6">
+                                    Controleer je inbox voor een link om je wachtwoord te resetten.
+                                </p>
+                                <button
+                                    onClick={() => {
+                                        setShowForgotPassword(false);
+                                        setResetEmail('');
+                                        setResetError('');
+                                        setResetSuccess(false);
+                                    }}
+                                    className="w-full py-3 px-6 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-sm shadow-xl transition-all active:scale-95"
+                                >
+                                    Sluiten
+                                </button>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleForgotPassword} className="space-y-6">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1 block mb-2">
+                                        E-mailadres
+                                    </label>
+                                    <div className="relative group">
+                                        <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-emerald-600 transition-colors" />
+                                        <input 
+                                            type="email"
+                                            value={resetEmail}
+                                            onChange={(e) => setResetEmail(e.target.value)}
+                                            required
+                                            className="w-full pl-12 pr-4 py-4.5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500/30 focus:bg-white outline-none transition-all placeholder:text-slate-300"
+                                            placeholder="naam@bedrijf.nl"
+                                        />
+                                    </div>
+                                </div>
+
+                                {resetError && (
+                                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl flex items-start gap-3 text-xs font-bold">
+                                        <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                        <span>{resetError}</span>
+                                    </div>
+                                )}
+
+                                <button 
+                                    type="submit"
+                                    disabled={resetLoading || !resetEmail}
+                                    className="w-full py-5 px-6 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-sm shadow-xl shadow-slate-900/20 hover:shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 disabled:bg-slate-400 disabled:cursor-not-allowed"
+                                >
+                                    {resetLoading ? (
+                                        <Loader2 className="animate-spin" size={20} />
+                                    ) : (
+                                        <>
+                                            Reset link versturen
+                                            <ArrowRight size={18} />
+                                        </>
+                                    )}
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
     </div>
   );
 };

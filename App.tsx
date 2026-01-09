@@ -8,6 +8,7 @@ import FixedRoutePlanner from './components/FixedRoutePlanner';
 import Home from './components/Home';
 import Chatbot from './components/Chatbot';
 import LoginScreen from './components/LoginScreen';
+import PasswordReset from './components/PasswordReset';
 // Added missing import for DebtorManagement
 import DebtorManagement from './components/DebtorManagement';
 import PerformanceModule from './components/PerformanceModule';
@@ -62,6 +63,13 @@ function App() {
     };
     checkSession();
   }, []);
+
+  // Check if there's a password reset token in the URL
+  const checkPasswordResetToken = () => {
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const type = hashParams.get('type');
+    return type === 'recovery';
+  };
 
   // --- CRUD Handlers (Lokaal) ---
 
@@ -127,6 +135,12 @@ function App() {
   };
 
   if (!hasApiKey) return <ApiKeyPrompt setHasApiKey={setHasApiKey} language={language} />;
+  
+  // Check for password reset token first
+  if (!currentUser && checkPasswordResetToken()) {
+    return <PasswordReset onResetSuccess={() => setCurrentUser(null)} language={language} />;
+  }
+  
   if (!currentUser) return <LoginScreen onLoginSuccess={(u) => { setCurrentUser(u); }} language={language} />;
 
   return (
