@@ -156,26 +156,6 @@ const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtor
                     </div>
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <Timer size={12} /> Tolerantie (minuten)
-                </div>
-                <input 
-                    type="range" 
-                    min="0" 
-                    max="60" 
-                    step="5"
-                    value={config.timeWindowToleranceMinutes}
-                    onChange={(e) => setConfig(prev => ({ ...prev, timeWindowToleranceMinutes: Number(e.target.value) }))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
-                />
-                <div className="flex justify-between text-[10px] font-bold text-slate-500">
-                    <span>Strikt (0m)</span>
-                    <span className="text-emerald-600 font-black">{config.timeWindowToleranceMinutes}m</span>
-                    <span>Flexibel (60m)</span>
-                </div>
-              </div>
               
               <button 
                 onClick={handleOptimize} 
