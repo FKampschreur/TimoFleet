@@ -28,11 +28,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
     setIsLoading(true);
 
     try {
+        console.log('🔐 Login attempt started for:', email);
         const user = await login(email, password);
+        console.log('✅ Login successful:', user);
         onLoginSuccess(user);
     } catch (err: any) {
-        console.error("Auth Error:", err);
-        setError(err.message || t.login.error);
+        console.error("❌ Auth Error:", err);
+        const errorMessage = err.message || t.login.error;
+        setError(errorMessage);
+        
+        // Extra debug info in development
+        if (import.meta.env.DEV) {
+          console.error('Full error details:', {
+            message: err.message,
+            stack: err.stack,
+            name: err.name
+          });
+        }
     } finally {
         setIsLoading(false);
     }
