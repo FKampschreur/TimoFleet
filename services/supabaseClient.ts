@@ -18,41 +18,48 @@ const siteUrl = import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_SIT
 const isProduction = import.meta.env.PROD;
 const isDevelopment = import.meta.env.DEV;
 
-console.log('🔧 Supabase Config Check:', {
-  environment: isProduction ? 'PRODUCTION' : 'DEVELOPMENT',
-  url: supabaseUrl?.substring(0, 40) + (supabaseUrl?.length > 40 ? '...' : ''),
-  urlLength: supabaseUrl?.length || 0,
-  hasKey: !!supabaseAnonKey && supabaseAnonKey !== 'placeholder',
-  keyLength: supabaseAnonKey?.length || 0,
-  keyPrefix: supabaseAnonKey?.substring(0, 10) + '...' || 'none',
-  siteUrl: siteUrl,
-  envVars: {
-    VITE_PUBLIC_SUPABASE_URL: !!import.meta.env.VITE_PUBLIC_SUPABASE_URL,
-    VITE_SUPABASE_URL: !!import.meta.env.VITE_SUPABASE_URL,
-    VITE_PUBLIC_SUPABASE_ANON_KEY: !!import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY,
-    VITE_SUPABASE_ANON_KEY: !!import.meta.env.VITE_SUPABASE_ANON_KEY
-  }
-});
+// SECURITY: Log config details alleen in development mode
+if (isDevelopment) {
+  console.log('🔧 Supabase Config Check:', {
+    environment: 'DEVELOPMENT',
+    url: supabaseUrl?.substring(0, 40) + (supabaseUrl?.length > 40 ? '...' : ''),
+    urlLength: supabaseUrl?.length || 0,
+    hasKey: !!supabaseAnonKey && supabaseAnonKey !== 'placeholder',
+    keyLength: supabaseAnonKey?.length || 0,
+    keyPrefix: supabaseAnonKey?.substring(0, 10) + '...' || 'none',
+    siteUrl: siteUrl,
+    envVars: {
+      VITE_PUBLIC_SUPABASE_URL: !!import.meta.env.VITE_PUBLIC_SUPABASE_URL,
+      VITE_SUPABASE_URL: !!import.meta.env.VITE_SUPABASE_URL,
+      VITE_PUBLIC_SUPABASE_ANON_KEY: !!import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY,
+      VITE_SUPABASE_ANON_KEY: !!import.meta.env.VITE_SUPABASE_ANON_KEY
+    }
+  });
+}
 
 // Waarschuwing als configuratie niet correct is
 const configValid = supabaseUrl && supabaseUrl !== 'https://placeholder.supabase.co' && 
                     supabaseAnonKey && supabaseAnonKey !== 'placeholder';
 
 if (!configValid) {
-  const env = isProduction ? 'PRODUCTION (Vercel)' : 'DEVELOPMENT (lokaal)';
+  // SECURITY: Log config errors altijd (ook in production), maar zonder gevoelige details
+  const env = isProduction ? 'PRODUCTION' : 'DEVELOPMENT';
   console.error(`❌ Supabase configuratie ontbreekt in ${env}!`);
-  console.error('   Controleer de volgende environment variables:');
-  console.error('   - VITE_PUBLIC_SUPABASE_URL');
-  console.error('   - VITE_PUBLIC_SUPABASE_ANON_KEY');
   
-  if (isProduction) {
-    console.error('');
-    console.error('📋 Instructies voor Vercel:');
-    console.error('   1. Ga naar Vercel Dashboard → je project → Settings → Environment Variables');
-    console.error('   2. Voeg toe: VITE_PUBLIC_SUPABASE_URL = https://[jouw-project].supabase.co');
-    console.error('   3. Voeg toe: VITE_PUBLIC_SUPABASE_ANON_KEY = [jouw-anon-key]');
-    console.error('   4. Zorg dat ze beschikbaar zijn voor "Production" environment');
-    console.error('   5. Ga naar Deployments → klik op "..." → "Redeploy"');
+  if (isDevelopment) {
+    console.error('   Controleer de volgende environment variables:');
+    console.error('   - VITE_PUBLIC_SUPABASE_URL');
+    console.error('   - VITE_PUBLIC_SUPABASE_ANON_KEY');
+    
+    if (isProduction) {
+      console.error('');
+      console.error('📋 Instructies voor Vercel:');
+      console.error('   1. Ga naar Vercel Dashboard → je project → Settings → Environment Variables');
+      console.error('   2. Voeg toe: VITE_PUBLIC_SUPABASE_URL = https://[jouw-project].supabase.co');
+      console.error('   3. Voeg toe: VITE_PUBLIC_SUPABASE_ANON_KEY = [jouw-anon-key]');
+      console.error('   4. Zorg dat ze beschikbaar zijn voor "Production" environment');
+      console.error('   5. Ga naar Deployments → klik op "..." → "Redeploy"');
+    }
   }
 }
 

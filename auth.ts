@@ -9,12 +9,16 @@ export const login = async (email: string, password: string): Promise<User> => {
     const supabaseUrl = import.meta.env.VITE_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    console.log('🔐 Login attempt:', {
-      email: email.trim().toLowerCase(),
-      hasUrl: !!supabaseUrl && supabaseUrl !== 'https://placeholder.supabase.co',
-      hasKey: !!supabaseKey && supabaseKey !== 'placeholder',
-      urlPreview: supabaseUrl?.substring(0, 30) + '...' || 'none'
-    });
+    // SECURITY: Log alleen in development mode, masker gevoelige data
+    if (import.meta.env.DEV) {
+      const maskedEmail = email.trim().toLowerCase().replace(/(.{2})(.*)(@.*)/, '$1***$3'); // Masker middelste deel
+      console.log('🔐 Login attempt:', {
+        email: maskedEmail,
+        hasUrl: !!supabaseUrl && supabaseUrl !== 'https://placeholder.supabase.co',
+        hasKey: !!supabaseKey && supabaseKey !== 'placeholder',
+        urlPreview: supabaseUrl?.substring(0, 30) + '...' || 'none'
+      });
+    }
     
     if (!supabaseUrl || supabaseUrl === 'https://placeholder.supabase.co' || 
         !supabaseKey || supabaseKey === 'placeholder') {

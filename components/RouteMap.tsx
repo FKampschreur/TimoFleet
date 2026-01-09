@@ -23,14 +23,14 @@ const DEPOT_COORDS: [number, number] = [51.8157, 5.7663];
 const MapAutoCenter: React.FC<{ routes: Route[] }> = ({ routes }) => {
     const map = useMap();
     React.useEffect(() => {
-        if (!routes || routes.length === 0) return;
-        
+        // Verzamel alle coördinaten van delivery stops
         const allCoords = routes.flatMap(r => 
           r.stops
-            .filter(s => s.lat != null && s.lng != null && s.lat !== 0)
+            .filter(s => s.type === 'DELIVERY' && s.lat != null && s.lng != null && s.lat !== 0 && s.lng !== 0)
             .map(s => [s.lat!, s.lng!] as [number, number])
         ).filter((c): c is [number, number] => c !== null);
 
+        // Zorg dat depot altijd in de bounds zit
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds([DEPOT_COORDS, ...allCoords]);
             map.fitBounds(bounds, { 
@@ -38,6 +38,9 @@ const MapAutoCenter: React.FC<{ routes: Route[] }> = ({ routes }) => {
               maxZoom: 12,
               animate: true 
             });
+        } else {
+            // Als er geen routes zijn, center op depot
+            map.setView(DEPOT_COORDS, 12, { animate: true });
         }
     }, [routes, map]);
     return null;
@@ -72,74 +75,145 @@ const createMarkerIcon = (color: string, label: string, isDepot: boolean = false
 };
 
 const RouteMap: React.FC<RouteMapProps> = ({ routes }) => {
+  // Zorg dat routes altijd een array is
+  const safeRoutes = routes || [];
+  
+  // Debug: log route informatie
+  React.useEffect(() => {
+    console.log('RouteMap: routes received', safeRoutes.length);
+    safeRoutes.forEach((route, idx) => {
+      const deliveryStops = route.stops.filter(s => s.type === 'DELIVERY' && s.lat != null && s.lng != null && s.lat !== 0);
+      console.log(`Route ${idx} (${route.vehicleId}): ${deliveryStops.length} delivery stops met coördinaten`);
+    });
+  }, [safeRoutes]);
+  
+  // Fix voor Leaflet default icon issue
+  React.useEffect(() => {
+    // Verwijder default icon path issues
+    if (typeof window !== 'undefined' && L && L.Icon && L.Icon.Default) {
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+      });
+    }
+  }, []);
+  
   return (
-    <div className="h-[600px] w-full rounded-[2rem] overflow-hidden shadow-inner border border-slate-200 bg-slate-100">
-      <MapContainer center={DEPOT_COORDS} zoom={10} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+    <div className="h-[600px] w-full rounded-[2rem] overflow-hidden shadow-inner border border-slate-200 bg-slate-100 relative">
+      <MapContainer 
+        center={DEPOT_COORDS} 
+        zoom={10} 
+        scrollWheelZoom={true} 
+        style={{ height: '100%', width: '100%', zIndex: 0 }}
+        zoomControl={true}
+      >
+        {/* Primaire OpenStreetMap tiles - betrouwbare bron met meerdere subdomains voor betere laadprestaties */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+          maxNativeZoom={19}
+          subdomains={['a', 'b', 'c']}
+          tileSize={256}
+          zoomOffset={0}
+          updateWhenZooming={false}
+          updateWhenIdle={true}
+          keepBuffer={3}
+          noWrap={false}
         />
         
-        {/* Depot Marker */}
+        {/* Depot Marker - Altijd zichtbaar als vertreklocatie - HOGE PRIORITEIT */}
         <Marker 
             position={DEPOT_COORDS} 
             icon={createMarkerIcon('#1e293b', '🏠', true)}
+            zIndexOffset={2000}
         >
             <Popup className="rounded-xl overflow-hidden">
-                <div className="p-1">
+                <div className="p-3">
+                    <div className="font-black text-slate-900 text-sm mb-1 flex items-center gap-2">
+                        <span className="text-lg">🏠</span>
+                        <span>Vertreklocatie</span>
+                    </div>
                     <div className="font-black text-slate-900 text-sm">Holland Food Service</div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tight">Hoofdkantoor Wijchen</div>
+                    <div className="text-[10px] text-slate-500 mt-1">Bijsterhuizen 2513, Wijchen</div>
                 </div>
             </Popup>
         </Marker>
 
-        {routes.map((route, rIdx) => {
+        {safeRoutes.length > 0 ? safeRoutes.map((route, rIdx) => {
           const color = ROUTE_COLORS[rIdx % ROUTE_COLORS.length];
-          // Filter stops met geldige coördinaten
-          const validStops = route.stops.filter(s => s.lat != null && s.lng != null && s.lat !== 0);
+          // Filter alleen DELIVERY stops met geldige coördinaten voor de route lijn
+          // Dit zorgt ervoor dat de lijn alleen de daadwerkelijke route volgt
+          const deliveryStops = route.stops
+            .filter(s => s.type === 'DELIVERY' && s.lat != null && s.lng != null && s.lat !== 0 && s.lng !== 0);
           
-          const polylinePoints: [number, number][] = [
+          // Bouw de route lijn: depot -> delivery stops in volgorde -> depot
+          const polylinePoints: [number, number][] = deliveryStops.length > 0 ? [
             DEPOT_COORDS,
-            ...validStops.map(s => [s.lat!, s.lng!] as [number, number]),
+            ...deliveryStops.map(s => [s.lat!, s.lng!] as [number, number]),
             DEPOT_COORDS
-          ];
+          ] : [];
+
+          // Debug logging
+          if (deliveryStops.length === 0) {
+            console.warn(`Route ${rIdx} (${route.vehicleId}) heeft geen delivery stops met coördinaten. Totaal stops: ${route.stops.length}`);
+            // Log alle stops om te zien wat er is
+            console.log('Alle stops:', route.stops.map(s => ({ type: s.type, lat: s.lat, lng: s.lng })));
+          } else {
+            console.log(`Route ${rIdx} (${route.vehicleId}): ${deliveryStops.length} delivery stops, polyline punten: ${polylinePoints.length}`);
+          }
 
           return (
-            <React.Fragment key={rIdx}>
-              {polylinePoints.length > 2 && (
+            <React.Fragment key={`route-${rIdx}-${route.vehicleId || rIdx}`}>
+              {polylinePoints.length >= 2 && (
                 <>
-                  {/* Outer Glow / Border for the line */}
+                  {/* Outer Glow / Border for the line - maakt de route beter zichtbaar */}
                   <Polyline 
+                    key={`route-border-${rIdx}`}
                     positions={polylinePoints} 
-                    pathOptions={{ color: 'white', weight: 8, opacity: 0.4 }} 
+                    pathOptions={{ 
+                      color: 'white', 
+                      weight: 10, 
+                      opacity: 0.6,
+                      lineJoin: 'round',
+                      lineCap: 'round',
+                      interactive: false
+                    }} 
                   />
-                  {/* Main Route Line */}
+                  {/* Main Route Line - elke route heeft zijn eigen kleur */}
                   <Polyline 
+                    key={`route-line-${rIdx}`}
                     positions={polylinePoints} 
-                    pathOptions={{ color, weight: 5, opacity: 0.9, lineJoin: 'round' }} 
+                    pathOptions={{ 
+                      color, 
+                      weight: 6, 
+                      opacity: 1.0, 
+                      lineJoin: 'round',
+                      lineCap: 'round',
+                      dashArray: rIdx % 2 === 0 ? undefined : '10, 5', // Alternerende stijl voor betere onderscheiding
+                      interactive: true
+                    }} 
                   />
                 </>
               )}
               
-              {route.stops.map((stop, sIdx) => {
-                if (stop.lat == null || stop.lng == null || stop.lat === 0) return null;
-                
-                let label = '';
-                if (stop.type === 'DELIVERY') {
+              {/* Alleen DELIVERY stops als markers - BREAK en IDLE worden niet getoond voor overzichtelijke route lijn */}
+              {route.stops
+                .filter(stop => stop.type === 'DELIVERY' && stop.lat != null && stop.lng != null && stop.lat !== 0 && stop.lng !== 0)
+                .map((stop, sIdx) => {
                   // Tel hoeveelste aflevering dit is in deze route
-                  label = (route.stops.slice(0, sIdx + 1).filter(s => s.type === 'DELIVERY').length).toString();
-                } else if (stop.type === 'BREAK') {
-                    label = '☕';
-                } else if (stop.type === 'IDLE') {
-                    label = '⏳';
-                } else {
-                    label = '•';
-                }
+                  const deliveryIndex = route.stops
+                    .slice(0, route.stops.indexOf(stop) + 1)
+                    .filter(s => s.type === 'DELIVERY').length;
+                  const label = deliveryIndex.toString();
 
-                return (
+                  return (
                     <Marker 
-                      key={`${rIdx}-${sIdx}`} 
-                      position={[stop.lat, stop.lng]} 
+                      key={`${rIdx}-${stop.debtorId || sIdx}`} 
+                      position={[stop.lat!, stop.lng!]} 
                       icon={createMarkerIcon(color, label)}
                     >
                       <Popup className="rounded-2xl">
@@ -168,13 +242,20 @@ const RouteMap: React.FC<RouteMapProps> = ({ routes }) => {
                         </div>
                       </Popup>
                     </Marker>
-                );
-              })}
+                  );
+                })}
             </React.Fragment>
           );
-        })}
+        }) : (
+          // Geen routes - toon alleen depot
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 z-10 pointer-events-none">
+            <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-slate-200">
+              <p className="text-sm font-bold text-slate-600">Geen routes beschikbaar</p>
+            </div>
+          </div>
+        )}
         
-        <MapAutoCenter routes={routes} />
+        <MapAutoCenter routes={routes || []} />
       </MapContainer>
     </div>
   );

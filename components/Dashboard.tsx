@@ -13,6 +13,7 @@ interface DashboardProps {
     language: Language;
     initialDebtors?: Debtor[];
     setInitialDebtors?: React.Dispatch<React.SetStateAction<Debtor[]>>;
+    currentUserId?: string; // SECURITY: Voor rate limiting
 }
 
 const formatDuration = (totalMinutes: number): string => {
@@ -21,7 +22,7 @@ const formatDuration = (totalMinutes: number): string => {
     return `${h}u ${m}m`;
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtors, setInitialDebtors }) => {
+const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtors, setInitialDebtors, currentUserId }) => {
   // Use passed state if available, otherwise local state (fallback)
   const [localDebtors, setLocalDebtors] = useState<Debtor[]>([]);
   const debtors = initialDebtors || localDebtors;
@@ -58,7 +59,7 @@ const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtor
     setLoading(true);
     setError(null);
     try {
-      const res = await generateOptimalRoutes(debtors, vehicles, config);
+      const res = await generateOptimalRoutes(debtors, vehicles, config, currentUserId);
       setResult(res);
     } catch (err: any) {
       setError(err.message || "Fout bij genereren.");
@@ -69,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtor
 
   const handleOpenReport = () => {
       if (!result) return;
-      setAdvicePromise(generateSavingsAdvice(result.routes, debtors));
+      setAdvicePromise(generateSavingsAdvice(result.routes, debtors, currentUserId));
       setShowEmailModal(true);
   };
 
@@ -87,8 +88,21 @@ const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtor
   };
 
   const handleSaveInstruction = () => {
-      setConfig(prev => ({ ...prev, customInstruction: tempInstruction }));
-      setShowBrainModal(false);
+      // SECURITY: Valideer instructie lengte voordat opslaan
+      const MAX_LENGTH = 5000;
+      if (tempInstruction.length > MAX_LENGTH) {
+          setError(`Instructie is te lang (maximaal ${MAX_LENGTH} karakters). Huidige lengte: ${tempInstruction.length}`);
+          return;
+      }
+      
+      try {
+          // Validatie wordt gedaan in getBrainInstruction, maar we proberen het hier al te valideren
+          setConfig(prev => ({ ...prev, customInstruction: tempInstruction }));
+          setShowBrainModal(false);
+          setError(null);
+      } catch (err: any) {
+          setError(err.message || 'Fout bij opslaan van instructie');
+      }
   };
 
   const handleResetInstruction = () => {
@@ -462,10 +476,21 @@ const Dashboard: React.FC<DashboardProps> = ({ vehicles, language, initialDebtor
                     </div>
                     <textarea 
                         value={tempInstruction}
-                        onChange={(e) => setTempInstruction(e.target.value)}
+                        onChange={(e) => {
+                            const newValue = e.target.value;
+                            // SECURITY: Limiteer lengte in UI
+                            if (newValue.length <= 5000) {
+                                setTempInstruction(newValue);
+                            }
+                        }}
+                        maxLength={5000}
                         className="flex-1 w-full p-8 bg-slate-900 text-emerald-400 font-mono text-xs leading-relaxed focus:outline-none resize-none custom-scrollbar"
                         spellCheck="false"
+                        placeholder="Voer hier uw custom planning instructies in (maximaal 5000 karakters)..."
                     />
+                    <div className="absolute bottom-20 right-8 text-xs text-slate-400">
+                        {tempInstruction.length} / 5000 karakters
+                    </div>
                 </div>
                 <div className="p-6 bg-white border-t border-slate-100 flex justify-between items-center">
                     <button 

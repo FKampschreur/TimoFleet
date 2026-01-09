@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { getStartOfWeek, timeToMinutes, toLocalYMD } from '../utils/dateHelpers';
 // Fix: Added ScheduleEntry to import, which is added to types.ts
 import { Driver, LicenseType, Language, ScheduleType, ScheduleEntry, FixedRoute, Vehicle, FuelType } from '../types';
 import { translations } from '../translations';
@@ -58,34 +59,13 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
 
     const t = translations[language];
 
-    // Helper to get start of current week (Monday)
-    const getStartOfWeek = (date: Date) => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    };
-
-    // Helper to format date locally YYYY-MM-DD
-    const toLocalYMD = (d: Date) => {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
-
+    // REFACTORED: Gebruik gedeelde date helpers
     const startOfWeek = getStartOfWeek(currentDate);
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(startOfWeek);
         d.setDate(startOfWeek.getDate() + i);
         return d;
     });
-
-    const timeToMinutes = (time: string): number => {
-        if (!time) return 0;
-        const [h, m] = time.split(':').map(Number);
-        return h * 60 + m;
-    };
 
     const handlePrevWeek = () => {
         const newDate = new Date(currentDate);

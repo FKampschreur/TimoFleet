@@ -196,18 +196,183 @@ const EmailReportModal: React.FC<EmailReportModalProps> = ({ result, onClose, ad
                 </div>
 
                 {/* Email Preview */}
-                <div className="space-y-3">
+                <div className="space-y-4">
                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <FileText size={18} className="text-slate-400" />
                             <h4 className="text-sm font-black text-slate-800 uppercase tracking-wide">Email Voorbeeld</h4>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded">Klaar om te kopiëren</span>
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">Klaar om te kopiëren</span>
                      </div>
-                    <div className="bg-slate-900 rounded-2xl p-6 shadow-inner overflow-hidden">
-                        <pre className="font-mono text-xs text-slate-300 whitespace-pre-wrap max-h-48 overflow-y-auto custom-scrollbar leading-relaxed">
-                            {generateReportText()}
-                        </pre>
+                    
+                    {/* Email Container - Simuleert een email client */}
+                    <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-lg overflow-hidden">
+                        {/* Email Header */}
+                        <div className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 px-6 py-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white font-black text-sm">
+                                        TF
+                                    </div>
+                                    <div>
+                                        <div className="font-black text-slate-900 text-sm">Timo Fleet</div>
+                                        <div className="text-[10px] text-slate-500 font-medium">noreply@timofleet.nl</div>
+                                    </div>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-bold">
+                                    {new Date().toLocaleDateString('nl-NL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-slate-200">
+                                <div className="text-xs font-black text-slate-900 mb-1">Aan: Management Team</div>
+                                <div className="text-xs font-black text-slate-700">Onderwerp: Planning & Strategisch Advies - Route Optimalisatie</div>
+                            </div>
+                        </div>
+                        
+                        {/* Email Body */}
+                        <div className="p-6 bg-white max-h-96 overflow-y-auto">
+                            <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
+                                {generateReportText().split('\n').map((line, idx, arr) => {
+                                    const trimmedLine = line.trim();
+                                    
+                                    // Titel
+                                    if (trimmedLine.includes('PLANNINGSRAPPORT')) {
+                                        return (
+                                            <div key={idx} className="border-b-2 border-emerald-500 pb-3 mb-4">
+                                                <h1 className="text-xl font-black text-slate-900">{trimmedLine}</h1>
+                                                {arr[idx + 1] && arr[idx + 1].includes('Datum:') && (
+                                                    <p className="text-xs text-slate-500 mt-1 font-medium">{arr[idx + 1].trim()}</p>
+                                                )}
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Skip datum (al getoond bij titel)
+                                    if (trimmedLine.includes('Datum:')) return null;
+                                    
+                                    // Sectie headers
+                                    if (trimmedLine.includes('SAMENVATTING:') || trimmedLine.includes('BESPARINGSADVIES') || trimmedLine.includes('DETAILOVERZICHT')) {
+                                        return (
+                                            <div key={idx} className="mt-6 mb-3">
+                                                <h2 className="text-sm font-black text-emerald-700 uppercase tracking-wider border-l-4 border-emerald-500 pl-3 py-1.5 bg-emerald-50/50 rounded-r">
+                                                    {trimmedLine.replace(':', '')}
+                                                </h2>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Scheidingslijn
+                                    if (trimmedLine.match(/^-+$/)) {
+                                        return <div key={idx} className="border-b border-slate-200 my-3"></div>;
+                                    }
+                                    
+                                    // Klant/Voertuig headers
+                                    if (trimmedLine.startsWith('KLANT:') || trimmedLine.startsWith('VOERTUIG:')) {
+                                        return (
+                                            <div key={idx} className="bg-blue-50 rounded-lg px-4 py-2.5 mt-4 mb-2 border-l-4 border-blue-500">
+                                                <span className="font-black text-slate-900 text-sm">{trimmedLine}</span>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Advies regels
+                                    if (trimmedLine.startsWith('  Advies:')) {
+                                        const adviesText = trimmedLine.replace('  Advies: ', '');
+                                        return (
+                                            <div key={idx} className="ml-4 mt-2 flex items-start gap-2">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase mt-0.5 shrink-0">Advies:</span>
+                                                <span className="text-sm text-slate-700 flex-1">{adviesText}</span>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    if (trimmedLine.startsWith('  Reden:')) {
+                                        const redenText = trimmedLine.replace('  Reden: ', '');
+                                        return (
+                                            <div key={idx} className="ml-4 mt-1 flex items-start gap-2">
+                                                <span className="text-[10px] font-black text-slate-500 uppercase mt-0.5 shrink-0">Reden:</span>
+                                                <span className="text-sm text-slate-600 italic flex-1">{redenText}</span>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    if (trimmedLine.startsWith('  Potentiële besparing:')) {
+                                        const bedrag = trimmedLine.match(/€[\d.,]+/)?.[0] || '';
+                                        return (
+                                            <div key={idx} className="ml-4 mt-3 mb-4">
+                                                <div className="bg-emerald-50 rounded-lg px-4 py-3 border-2 border-emerald-200">
+                                                    <div className="text-xs font-black text-emerald-700 uppercase mb-1">Potentiële besparing</div>
+                                                    <div className="text-2xl font-black text-emerald-700">{bedrag}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Kosten/CO2/KM regels met highlights
+                                    if (trimmedLine.includes('€') || trimmedLine.includes('km') || trimmedLine.includes('g')) {
+                                        const parts = trimmedLine.split(/(€[\d.,]+|[\d.,]+\s*(km|g|kg))/g);
+                                        return (
+                                            <div key={idx} className="text-sm text-slate-700 flex flex-wrap items-center gap-1.5">
+                                                {parts.map((part, pIdx) => {
+                                                    if (part && part.match(/€[\d.,]+|[\d.,]+\s*(km|g|kg)/)) {
+                                                        return <span key={pIdx} className="font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">{part.trim()}</span>;
+                                                    }
+                                                    return part ? <span key={pIdx}>{part}</span> : null;
+                                                })}
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Stops lijst
+                                    if (trimmedLine.match(/^\d+\./)) {
+                                        const parts = trimmedLine.split('.');
+                                        return (
+                                            <div key={idx} className="text-sm text-slate-600 ml-6 flex items-start gap-2">
+                                                <span className="font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs">{parts[0]}.</span>
+                                                <span className="flex-1">{parts.slice(1).join('.').trim()}</span>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Tijd regels
+                                    if (trimmedLine.startsWith('Tijd:')) {
+                                        return (
+                                            <div key={idx} className="text-sm text-slate-700 ml-4">
+                                                <span className="font-medium">⏰ {trimmedLine}</span>
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Stops header
+                                    if (trimmedLine === 'Stops:') {
+                                        return (
+                                            <div key={idx} className="text-xs font-black text-slate-500 uppercase mt-2 mb-1 ml-4">
+                                                📍 {trimmedLine}
+                                            </div>
+                                        );
+                                    }
+                                    
+                                    // Lege regel
+                                    if (!trimmedLine) {
+                                        return <div key={idx} className="h-2"></div>;
+                                    }
+                                    
+                                    // Standaard regel
+                                    return (
+                                        <div key={idx} className="text-sm text-slate-700">
+                                            {trimmedLine}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Scroll hint */}
+                    <div className="text-center">
+                        <div className="text-[10px] text-slate-400 font-medium flex items-center justify-center gap-2">
+                            <span>Scroll om volledige inhoud te bekijken</span>
+                        </div>
                     </div>
                 </div>
 

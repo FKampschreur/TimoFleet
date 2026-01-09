@@ -1,26 +1,87 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Debtor, OptimizationResult, PlanningConfig, Vehicle, VehicleType, Route, Stop, PlanningStrategy, OptimizationAdvice } from '../types';
+import { timeToMinutes, formatMinToTime } from '../utils/dateHelpers';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const timeToMinutes = (time: string): number => {
-  if (!time) return 0;
-  const parts = time.split(':');
-  if (parts.length < 2) return 0;
-  const [h, m] = parts.map(Number);
-  return (isNaN(h) || isNaN(m)) ? 0 : h * 60 + m;
+// SECURITY: Rate limiting voor AI API calls om kosten en DoS te voorkomen
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minuut
+const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minuut per gebruiker
+
+const checkRateLimit = (userId: string): { allowed: boolean; remaining: number; resetIn: number } => {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  
+  if (!entry || now > entry.resetTime) {
+    // Nieuwe window of expired entry
+    rateLimitMap.set(userId, {
+      count: 1,
+      resetTime: now + RATE_LIMIT_WINDOW_MS
+    });
+    return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - 1, resetIn: RATE_LIMIT_WINDOW_MS };
+  }
+  
+  if (entry.count >= MAX_REQUESTS_PER_WINDOW) {
+    // Rate limit exceeded
+    return { 
+      allowed: false, 
+      remaining: 0, 
+      resetIn: entry.resetTime - now 
+    };
+  }
+  
+  // Increment count
+  entry.count++;
+  rateLimitMap.set(userId, entry);
+  
+  return { 
+    allowed: true, 
+    remaining: MAX_REQUESTS_PER_WINDOW - entry.count, 
+    resetIn: entry.resetTime - now 
+  };
 };
 
-const formatMinToTime = (min: number) => {
-    const h = (Math.floor(min / 60) + 24) % 24;
-    const m = Math.round(min % 60);
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+// Cleanup oude entries periodiek (elke 5 minuten)
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetTime + RATE_LIMIT_WINDOW_MS) {
+      rateLimitMap.delete(userId);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Helper functie om API key te valideren
+const getValidatedApiKey = (): string => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('Gemini API key ontbreekt. Controleer of process.env.API_KEY is ingesteld.');
+  }
+  return apiKey;
 };
+
+// REFACTORED: Gebruik gedeelde date helpers (timeToMinutes en formatMinToTime zijn geïmporteerd)
 
 const getPostcodePrefix = (pc: string): string => {
+    // Validatie: controleer postcode formaat
+    if (!pc || typeof pc !== 'string' || pc.trim() === '') {
+      console.warn(`Ongeldig postcode formaat: ${pc}`);
+      return '00';
+    }
+    
     // Haal de eerste 2 cijfers van de postcode (NL formaat '1234 AB')
     const match = pc.match(/^(\d{2})/);
-    return match ? match[1] : '00';
+    if (!match) {
+      console.warn(`Ongeldig postcode formaat: ${pc} - verwacht NL formaat (bijv. 1234 AB)`);
+      return '00';
+    }
+    return match[1];
 };
 
 const mergeOrders = (orders: Debtor[]): Debtor[] => {
@@ -161,11 +222,54 @@ const routeSchema = {
   required: ["start_time", "stops", "totaal_km"]
 };
 
+// SECURITY: Valideer en sanitize custom instructions om prompt injection te voorkomen
+const validateAndSanitizeCustomInstruction = (instruction: string): string => {
+    const MAX_LENGTH = 5000; // Max lengte om kosten te beperken
+    const trimmed = instruction.trim();
+    
+    if (trimmed.length === 0) {
+        throw new Error('Custom instructie mag niet leeg zijn');
+    }
+    
+    if (trimmed.length > MAX_LENGTH) {
+        throw new Error(`Custom instructie mag maximaal ${MAX_LENGTH} karakters bevatten (huidig: ${trimmed.length})`);
+    }
+    
+    // SECURITY: Detecteer mogelijke prompt injection patronen
+    const dangerousPatterns = [
+        /ignore\s+(previous|all|above|instructions?)/i,
+        /forget\s+(previous|all|above|instructions?)/i,
+        /disregard\s+(previous|all|above|instructions?)/i,
+        /system\s*[:=]\s*["']?/i,
+        /you\s+are\s+now/i,
+        /act\s+as\s+if/i,
+        /pretend\s+to\s+be/i,
+    ];
+    
+    for (const pattern of dangerousPatterns) {
+        if (pattern.test(trimmed)) {
+            throw new Error('Custom instructie bevat mogelijk gevaarlijke patronen. Gebruik alleen instructies voor route planning.');
+        }
+    }
+    
+    // Escape potentiële injection karakters door ze te vervangen
+    // Maar behoud leesbaarheid voor legitieme instructies
+    return trimmed
+        .replace(/\r\n/g, '\n') // Normaliseer line endings
+        .replace(/\r/g, '\n')
+        .substring(0, MAX_LENGTH); // Extra veiligheid: truncate als het toch te lang is
+};
+
 export const getBrainInstruction = (strategy: PlanningStrategy, toleranceMinutes: number, maxDuration: number, customInstruction?: string): string => {
     
-    // If user provided a custom instruction, use it.
+    // SECURITY: Valideer en sanitize custom instruction voordat deze wordt gebruikt
     if (customInstruction && customInstruction.trim().length > 0) {
-        return customInstruction;
+        try {
+            return validateAndSanitizeCustomInstruction(customInstruction);
+        } catch (error: any) {
+            console.error('Custom instruction validatie gefaald:', error.message);
+            throw error; // Re-throw zodat UI de fout kan tonen
+        }
     }
 
     if (strategy === 'JIT') {
@@ -247,9 +351,22 @@ STAP 7: VOERTUIG HIERARCHIE (Vrachtwagen vs Bestelbus)
 export const generateOptimalRoutes = async (
   debtors: Debtor[],
   vehicles: Vehicle[],
-  config: PlanningConfig
+  config: PlanningConfig,
+  userId?: string // SECURITY: Optionele userId voor rate limiting
 ): Promise<OptimizationResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // SECURITY: Rate limiting check
+  if (userId) {
+    const rateLimit = checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      const resetMinutes = Math.ceil(rateLimit.resetIn / 1000 / 60);
+      throw new Error(
+        `Rate limit bereikt. Maximum ${MAX_REQUESTS_PER_WINDOW} requests per minuut. Probeer over ${resetMinutes} minuut(en) opnieuw.`
+      );
+    }
+  }
+  
+  const apiKey = getValidatedApiKey();
+  const ai = new GoogleGenAI({ apiKey });
   
   // 1. Samenvoegen van orders op zelfde adres/tijd
   let consolidatedOrders = mergeOrders(debtors.filter(d => (d.containers_chilled + d.containers_frozen) > 0));
@@ -334,7 +451,16 @@ export const generateOptimalRoutes = async (
         }
       });
 
-      const result = JSON.parse(response.text || '{}');
+      // Error boundary: valideer JSON parsing
+      let result;
+      try {
+        result = JSON.parse(response.text || '{}');
+      } catch (parseError) {
+        console.error('Kon AI response niet parsen:', parseError);
+        console.error('Response text:', response.text?.substring(0, 200));
+        throw new Error('Ongeldig AI response formaat: JSON parsing gefaald');
+      }
+      
       if (result && result.stops) {
         let hydratedRoute = hydrateRoute(result, vehicle, consolidatedOrders, config);
         
@@ -379,9 +505,22 @@ export const recalculateRouteWithOrder = async (
   vehicle: Vehicle,
   stops: Stop[],
   config: PlanningConfig,
-  allDebtors: Debtor[]
+  allDebtors: Debtor[],
+  userId?: string // SECURITY: Optionele userId voor rate limiting
 ): Promise<Route> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // SECURITY: Rate limiting check
+  if (userId) {
+    const rateLimit = checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      const resetMinutes = Math.ceil(rateLimit.resetIn / 1000 / 60);
+      throw new Error(
+        `Rate limit bereikt. Maximum ${MAX_REQUESTS_PER_WINDOW} requests per minuut. Probeer over ${resetMinutes} minuut(en) opnieuw.`
+      );
+    }
+  }
+  
+  const apiKey = getValidatedApiKey();
+  const ai = new GoogleGenAI({ apiKey });
   const sequence = stops
     .filter(s => s.type === 'DELIVERY')
     .map(s => {
@@ -399,7 +538,15 @@ export const recalculateRouteWithOrder = async (
         contents: prompt,
         config: { temperature: 0.1, responseMimeType: "application/json", responseSchema: routeSchema }
     });
-    const result = JSON.parse(response.text || '{}');
+    // Error boundary: valideer JSON parsing
+    let result;
+    try {
+      result = JSON.parse(response.text || '{}');
+    } catch (parseError) {
+      console.error('Kon AI response niet parsen:', parseError);
+      console.error('Response text:', response.text?.substring(0, 200));
+      throw new Error('Ongeldig AI response formaat: JSON parsing gefaald');
+    }
     return hydrateRoute(result, vehicle, allDebtors, config);
   } catch (err) {
     console.error("Recalculate error:", err);
@@ -409,10 +556,23 @@ export const recalculateRouteWithOrder = async (
 
 export const generateSavingsAdvice = async (
     routes: Route[],
-    allDebtors: Debtor[]
+    allDebtors: Debtor[],
+    userId?: string // SECURITY: Optionele userId voor rate limiting
 ): Promise<OptimizationAdvice[]> => {
     if (routes.length === 0) return [];
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // SECURITY: Rate limiting check
+    if (userId) {
+      const rateLimit = checkRateLimit(userId);
+      if (!rateLimit.allowed) {
+        const resetMinutes = Math.ceil(rateLimit.resetIn / 1000 / 60);
+        console.warn(`Rate limit bereikt voor advies generatie. Probeer over ${resetMinutes} minuut(en) opnieuw.`);
+        return []; // Return lege array in plaats van error voor advies
+      }
+    }
+    
+    const apiKey = getValidatedApiKey();
+    const ai = new GoogleGenAI({ apiKey });
     const routesSummary = routes.map(r => ({
         id: r.vehicleId,
         cost: r.totalCost,
@@ -442,18 +602,35 @@ export const generateSavingsAdvice = async (
             contents: prompt,
             config: { temperature: 0.2, responseMimeType: "application/json", responseSchema: adviceSchema }
         });
-        return JSON.parse(response.text || '[]');
+        // Error boundary: valideer JSON parsing
+        try {
+          return JSON.parse(response.text || '[]');
+        } catch (parseError) {
+          console.error('Kon advies response niet parsen:', parseError);
+          console.error('Response text:', response.text?.substring(0, 200));
+          return [];
+        }
     } catch (e) {
+        console.error('Fout bij genereren van advies:', e);
         return [];
     }
 };
 
 function hydrateRoute(aiResult: any, vehicle: Vehicle, allDebtors: Debtor[], config: PlanningConfig): Route {
+  // Validatie: controleer of AI response geldige structuur heeft
+  if (!aiResult || typeof aiResult !== 'object') {
+    throw new Error('Ongeldige AI response: geen object ontvangen');
+  }
+  
+  if (!aiResult.stops || !Array.isArray(aiResult.stops)) {
+    throw new Error('Ongeldige AI response: stops array ontbreekt of is geen array');
+  }
+  
   const rawStops: Stop[] = [];
   let currentLat = 51.8157;
   let currentLng = 5.7663;
   
-  if (aiResult && aiResult.stops) {
+  if (aiResult.stops.length > 0) {
     aiResult.stops.forEach((s: any) => {
         const action = (s.act || 'D').toUpperCase();
         if (action === 'D' && s.id && s.id !== 'DEPOT') {

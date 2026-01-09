@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { TimeRecord, Driver, FixedRoute, Language, User } from '../types';
+import { TimeRecord, Driver, FixedRoute, Language } from '../types';
+import type { User } from '../types';
 import { translations } from '../translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, Clock, Calendar, User as UserIcon, Map, Plus, ArrowRight, Lightbulb, Trophy, AlertTriangle, Timer, Activity, Edit2, Trash2, X, Check, Save, Ban, RotateCcw, MessageSquareWarning, Filter } from 'lucide-react';
@@ -19,13 +20,14 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
     const [selectedRouteId, setSelectedRouteId] = useState<string>('');
     const [editingRecord, setEditingRecord] = useState<TimeRecord | null>(null);
     const [showExcludedModal, setShowExcludedModal] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     
     // Date Filters for Analysis
     const [analysisStartDate, setAnalysisStartDate] = useState(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0]); // Default 1 month ago
     const [analysisEndDate, setAnalysisEndDate] = useState(new Date().toISOString().split('T')[0]); // Default today
     const [analysisDayOfWeek, setAnalysisDayOfWeek] = useState<string>('ALL'); // 'ALL' or '0'-'6'
 
-    const t = translations[language];
+    const t = translations[language] || translations.nl; // Fallback naar NL als language niet bestaat
 
     // Form State for NEW records
     const [newRecord, setNewRecord] = useState<Partial<TimeRecord>>({
@@ -41,6 +43,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
         const loadTimeRecords = async () => {
             if (!currentUser?.organization_id) {
                 setIsLoadingRecords(false);
+                setRecords([]);
                 return;
             }
 
@@ -49,13 +52,22 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                 const { data, error } = await supabase
                     .from('time_records')
                     .select('*')
+                    .eq('organization_id', currentUser.organization_id)
                     .order('date', { ascending: false })
                     .order('created_at', { ascending: false });
 
                 if (error) {
                     console.error('Error loading time records:', error);
-                    alert('Fout bij laden van tijdregistraties: ' + error.message);
+                    console.error('Error details:', {
+                        message: error.message,
+                        details: error.details,
+                        hint: error.hint,
+                        code: error.code
+                    });
+                    setError(`Fout bij laden: ${error.message}`);
+                    setRecords([]);
                 } else {
+                    setError(null);
                     const mappedRecords: TimeRecord[] = (data || []).map((r: any) => ({
                         id: r.id,
                         organization_id: r.organization_id,
@@ -70,9 +82,11 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                     }));
                     setRecords(mappedRecords);
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error('Error loading time records:', err);
-                alert('Fout bij laden van tijdregistraties');
+                console.error('Error stack:', err.stack);
+                setError(`Onverwachte fout: ${err.message || 'Onbekende fout'}`);
+                setRecords([]);
             } finally {
                 setIsLoadingRecords(false);
             }
@@ -92,12 +106,24 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
             return;
         }
 
+        // Validatie: controleer tijdformaat (HH:MM)
+        const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+        if (!timeRegex.test(newRecord.start_time) || !timeRegex.test(newRecord.end_time)) {
+            alert("Ongeldig tijdformaat. Gebruik formaat HH:MM (bijv. 09:30)");
+            return;
+        }
+
         const start = new Date(`1970-01-01T${newRecord.start_time}:00`);
         const end = new Date(`1970-01-01T${newRecord.end_time}:00`);
         const durationMinutes = (end.getTime() - start.getTime()) / 60000;
 
         if (durationMinutes <= 0) {
             alert("Eindtijd moet na starttijd liggen");
+            return;
+        }
+        
+        if (isNaN(durationMinutes)) {
+            alert("Ongeldige tijdwaarden. Controleer start- en eindtijd.");
             return;
         }
 
@@ -298,13 +324,31 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
         return `${h}u ${m}m`;
     };
 
+    // Show error message if there's an error
+    if (error && !isLoadingRecords) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={20} className="text-red-600 shrink-0 mt-0.5" />
+                        <div>
+                            <h3 className="text-lg font-black text-red-900 mb-1">Fout bij laden van prestatiegegevens</h3>
+                            <p className="text-sm text-red-700">{error}</p>
+                            <p className="text-xs text-red-600 mt-2">Controleer de browser console voor meer details.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
             {/* Header */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
                 <div>
-                    <h3 className="text-2xl font-black text-slate-900">{t.performance.title}</h3>
-                    <p className="text-sm text-slate-500 font-medium">{t.performance.subtitle}</p>
+                    <h3 className="text-2xl font-black text-slate-900">{t.performance?.title || 'Prestatie Analyse'}</h3>
+                    <p className="text-sm text-slate-500 font-medium">{t.performance?.subtitle || 'Vergelijk werkelijke rijtijden per chauffeur op vaste routes.'}</p>
                 </div>
                 <div className="bg-slate-100 p-1 rounded-xl flex">
                     <button 
@@ -337,7 +381,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                             <div>
                                 <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">{t.performance.form.driver}</label>
                                 <div className="relative">
-                                    <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <UserIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                     <select 
                                         value={newRecord.driver_id || ''} 
                                         onChange={e => setNewRecord({...newRecord, driver_id: e.target.value})}

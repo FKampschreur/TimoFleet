@@ -28,9 +28,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
     setIsLoading(true);
 
     try {
-        console.log('🔐 Login attempt started for:', email);
+        // SECURITY: Log alleen in development, masker email
+        if (import.meta.env.DEV) {
+          const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+          console.log('🔐 Login attempt started for:', maskedEmail);
+        }
         const user = await login(email, password);
-        console.log('✅ Login successful:', user);
+        // SECURITY: Log geen volledige user object in production
+        if (import.meta.env.DEV) {
+          console.log('✅ Login successful:', { id: user.id, name: user.name, role: user.role });
+        }
         onLoginSuccess(user);
     } catch (err: any) {
         console.error("❌ Auth Error:", err);
@@ -216,24 +223,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, language }) =
                         )}
                     </button>
                 </form>
-                
-                {/* Demo Credentials Hint */}
-                <div className="mt-12 pt-10 border-t border-slate-50">
-                    <div className="bg-slate-50 p-6 rounded-[2rem] border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Demo Account</div>
-                        <div className="flex gap-6">
-                            <div className="text-center sm:text-left">
-                                <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">E-mail</p>
-                                <p className="text-[11px] font-mono font-black text-slate-700">admin@timo.nl</p>
-                            </div>
-                            <div className="hidden sm:block w-px h-8 bg-slate-200"></div>
-                            <div className="text-center sm:text-left">
-                                <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">Wachtwoord</p>
-                                <p className="text-[11px] font-mono font-black text-slate-700">demo123</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 

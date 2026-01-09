@@ -38,19 +38,38 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         return idx !== -1 ? values[idx] : undefined;
       };
 
-      // Fix: Conform to Debtor type with snake_case and organization_id
+      // SECURITY: Sanitize en valideer input data
+      const sanitizeString = (val: string | undefined, maxLength: number = 500): string => {
+        if (!val) return '';
+        // Verwijder gevaarlijke karakters en limiteer lengte
+        return val.replace(/[<>\"']/g, '').substring(0, maxLength).trim();
+      };
+      
+      const sanitizeNumber = (val: string | undefined, defaultValue: number = 0, min: number = 0, max: number = 10000): number => {
+        const num = Number(val);
+        if (isNaN(num)) return defaultValue;
+        return Math.max(min, Math.min(max, num));
+      };
+      
+      const sanitizeTime = (val: string | undefined, defaultValue: string = '08:00'): string => {
+        if (!val) return defaultValue;
+        // Valideer tijdformaat HH:MM
+        const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+        return timeRegex.test(val) ? val : defaultValue;
+      };
+
       return {
-        id: getVal('id') || `CSV-${index}`,
+        id: sanitizeString(getVal('id')) || `CSV-${index}`,
         organization_id: 'temp-org-id', // Placeholder, should be from user context
-        name: getVal('naam') || getVal('name') || 'Onbekende Klant',
-        address: getVal('adres') || getVal('address') || '',
-        postcode: getVal('postcode') || getVal('zip') || getVal('pc') || '',
-        city: getVal('plaats') || getVal('city') || getVal('woonplaats') || '',
-        time_window_start: getVal('start') || '08:00',
-        time_window_end: getVal('eind') || getVal('end') || '17:00',
-        drop_time_minutes: Number(getVal('laden')) || Number(getVal('drop')) || 15,
-        containers_chilled: Number(getVal('koel')) || Number(getVal('chilled')) || 0,
-        containers_frozen: Number(getVal('vries')) || Number(getVal('frozen')) || 0,
+        name: sanitizeString(getVal('naam') || getVal('name')) || 'Onbekende Klant',
+        address: sanitizeString(getVal('adres') || getVal('address'), 200),
+        postcode: sanitizeString(getVal('postcode') || getVal('zip') || getVal('pc'), 10),
+        city: sanitizeString(getVal('plaats') || getVal('city') || getVal('woonplaats'), 100),
+        time_window_start: sanitizeTime(getVal('start'), '08:00'),
+        time_window_end: sanitizeTime(getVal('eind') || getVal('end'), '17:00'),
+        drop_time_minutes: sanitizeNumber(getVal('laden') || getVal('drop'), 15, 0, 480),
+        containers_chilled: sanitizeNumber(getVal('koel') || getVal('chilled'), 0, 0, 1000),
+        containers_frozen: sanitizeNumber(getVal('vries') || getVal('frozen'), 0, 0, 1000),
       };
     });
   };
@@ -59,19 +78,37 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
     try {
       const data = JSON.parse(text);
       if (!Array.isArray(data)) throw new Error("JSON moet een array zijn.");
-      // Fix: Conform to Debtor type with snake_case and organization_id
+      
+      // SECURITY: Helper functies voor sanitization (hergebruik van CSV)
+      const sanitizeString = (val: any, maxLength: number = 500): string => {
+        if (!val || typeof val !== 'string') return '';
+        return val.replace(/[<>\"']/g, '').substring(0, maxLength).trim();
+      };
+      
+      const sanitizeNumber = (val: any, defaultValue: number = 0, min: number = 0, max: number = 10000): number => {
+        const num = Number(val);
+        if (isNaN(num)) return defaultValue;
+        return Math.max(min, Math.min(max, num));
+      };
+      
+      const sanitizeTime = (val: any, defaultValue: string = '08:00'): string => {
+        if (!val || typeof val !== 'string') return defaultValue;
+        const timeRegex = /^([0-1][0-9]|2[0-3]):[0-5][0-9]$/;
+        return timeRegex.test(val) ? val : defaultValue;
+      };
+      
       return data.map((item: any, index: number) => ({
-        id: item.id || `JSON-${index}`,
+        id: sanitizeString(item.id) || `JSON-${index}`,
         organization_id: 'temp-org-id', // Placeholder, should be from user context
-        name: item.name || item.naam,
-        address: item.address || item.adres,
-        postcode: item.postcode || item.zipCode || item.pc || '',
-        city: item.city || item.plaats,
-        time_window_start: item.timeWindowStart || "08:00",
-        time_window_end: item.timeWindowEnd || "17:00",
-        drop_time_minutes: Number(item.dropTimeMinutes) || 15,
-        containers_chilled: Number(item.containersChilled) || 0,
-        containers_frozen: Number(item.containersFrozen) || 0
+        name: sanitizeString(item.name || item.naam) || 'Onbekende Klant',
+        address: sanitizeString(item.address || item.adres, 200),
+        postcode: sanitizeString(item.postcode || item.zipCode || item.pc, 10),
+        city: sanitizeString(item.city || item.plaats, 100),
+        time_window_start: sanitizeTime(item.timeWindowStart, "08:00"),
+        time_window_end: sanitizeTime(item.timeWindowEnd, "17:00"),
+        drop_time_minutes: sanitizeNumber(item.dropTimeMinutes, 15, 0, 480),
+        containers_chilled: sanitizeNumber(item.containersChilled, 0, 0, 1000),
+        containers_frozen: sanitizeNumber(item.containersFrozen, 0, 0, 1000)
       }));
     } catch (err: any) {
       throw new Error(`Ongeldige JSON: ${err.message}`);
@@ -79,15 +116,49 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
   };
 
   const processFile = (file: File) => {
-    const reader = new FileReader();
+    // SECURITY: Valideer bestandsgrootte (max 5MB)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      setStatus('error');
+      setMessage(`Bestand is te groot (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximum grootte is 5MB.`);
+      return;
+    }
+    
+    // SECURITY: Valideer bestandstype
     const isCsv = file.name.toLowerCase().endsWith('.csv');
+    const isJson = file.name.toLowerCase().endsWith('.json');
+    if (!isCsv && !isJson) {
+      setStatus('error');
+      setMessage('Alleen CSV en JSON bestanden zijn toegestaan.');
+      return;
+    }
+    
+    const reader = new FileReader();
     
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
+        
+        // SECURITY: Valideer dat bestand niet leeg is
+        if (!text || text.trim().length === 0) {
+          throw new Error("Bestand is leeg.");
+        }
+        
+        // SECURITY: Limiteer tekst lengte om memory exhaustion te voorkomen
+        const MAX_TEXT_LENGTH = 10 * 1024 * 1024; // 10MB tekst
+        if (text.length > MAX_TEXT_LENGTH) {
+          throw new Error(`Bestand bevat te veel tekst (${(text.length / 1024 / 1024).toFixed(2)}MB). Maximum is 10MB.`);
+        }
+        
         const data = isCsv ? parseCSV(text) : parseJSON(text);
         
         if (data.length === 0) throw new Error("Geen geldige data gevonden.");
+        
+        // SECURITY: Limiteer aantal records om DoS te voorkomen
+        const MAX_RECORDS = 10000;
+        if (data.length > MAX_RECORDS) {
+          throw new Error(`Te veel records (${data.length}). Maximum is ${MAX_RECORDS} records per bestand.`);
+        }
         
         onDataLoaded(data);
         setStatus('success');
@@ -97,6 +168,12 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         setMessage(err.message || "Fout bij verwerken bestand.");
       }
     };
+    
+    reader.onerror = () => {
+      setStatus('error');
+      setMessage('Fout bij lezen van bestand.');
+    };
+    
     reader.readAsText(file);
   };
 
@@ -176,8 +253,25 @@ const FileUpload: React.FC<FileUploadProps> = ({ onDataLoaded }) => {
         <input 
           type="file" 
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          onChange={(e) => e.target.files?.[0] && processFile(e.target.files[0])}
-          accept=".json,.csv"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              // SECURITY: Valideer bestandstype opnieuw in browser
+              const validTypes = ['text/csv', 'application/json', 'text/plain'];
+              const validExtensions = ['.csv', '.json'];
+              const isValidType = validTypes.includes(file.type) || 
+                                 validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+              
+              if (!isValidType) {
+                setStatus('error');
+                setMessage('Alleen CSV en JSON bestanden zijn toegestaan.');
+                return;
+              }
+              
+              processFile(file);
+            }
+          }}
+          accept=".json,.csv,text/csv,application/json"
         />
         
         <div className="flex gap-4 mb-3">

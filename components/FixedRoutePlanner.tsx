@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getStartOfWeek, timeToMinutes } from '../utils/dateHelpers';
 import { FixedRoute, Driver, LicenseType, Language, Vehicle, Debtor } from '../types';
 import { translations } from '../translations';
 import { MapPin, Clock, CalendarDays, ChevronLeft, ChevronRight, User, Plus, Search, X, Check, AlertCircle, UserX, AlertTriangle, Medal, Star, TrendingUp, Edit2, Calendar, Layout, Box, Snowflake, Sun, Trash2, ShieldCheck, Leaf, Map, Truck, Package, Eye, Power } from 'lucide-react';
@@ -25,26 +26,13 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
     const [selectedRouteDay, setSelectedRouteDay] = useState<{routeId: string, date: Date} | null>(null); // For Detail Modal
     const t = translations[language];
 
-    // Helper to get start of current week (Monday)
-    const getStartOfWeek = (date: Date) => {
-        const d = new Date(date);
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    };
-
+    // REFACTORED: Gebruik gedeelde date helpers
     const startOfWeek = getStartOfWeek(currentDate);
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(startOfWeek);
         d.setDate(startOfWeek.getDate() + i);
         return d;
     });
-
-    const timeToMinutes = (time: string): number => {
-        if (!time) return 0;
-        const [h, m] = time.split(':').map(Number);
-        return h * 60 + m;
-    };
 
     const handlePrevWeek = () => {
         const newDate = new Date(currentDate);

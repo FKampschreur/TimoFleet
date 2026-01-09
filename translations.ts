@@ -49,7 +49,8 @@ export const translations = {
         name: 'Naam (A-Z)',
         city: 'Plaats',
         foundation: 'Stichting',
-        location: 'Containerlocatie'
+        location: 'Containerlocatie',
+        route: 'Gekoppelde Rit'
       },
       table: {
         name: 'Klantnaam & Stichting',

@@ -13,7 +13,7 @@ interface DebtorManagementProps {
     onCopyToPlanning?: (debtors: Debtor[]) => void;
 }
 
-type SortOption = 'name' | 'city' | 'foundation' | 'location';
+type SortOption = 'name' | 'city' | 'foundation' | 'location' | 'route';
 
 const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, fixedRoutes, onAddDebtor, onUpdateDebtor, onDeleteDebtor, onCopyToPlanning }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -42,6 +42,12 @@ const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, 
                     return (a.foundation_name || '').localeCompare(b.foundation_name || '');
                 case 'location':
                     return (a.container_location || '').localeCompare(b.container_location || '');
+                case 'route':
+                    const routeA = fixedRoutes.find(r => r.id === a.fixed_route_id);
+                    const routeB = fixedRoutes.find(r => r.id === b.fixed_route_id);
+                    const nameA = routeA ? routeA.name : 'ZZZ Geen vaste rit';
+                    const nameB = routeB ? routeB.name : 'ZZZ Geen vaste rit';
+                    return nameA.localeCompare(nameB);
                 case 'name':
                 default:
                     return a.name.localeCompare(b.name);
@@ -49,7 +55,7 @@ const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, 
         });
 
         return result;
-    }, [debtors, searchTerm, sortBy]);
+    }, [debtors, searchTerm, sortBy, fixedRoutes]);
 
     const handleAddNew = () => {
         setIsCreating(true);
@@ -142,6 +148,7 @@ const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, 
                             <option value="city">{t.debtors.sort.city}</option>
                             <option value="foundation">{t.debtors.sort.foundation}</option>
                             <option value="location">{t.debtors.sort.location}</option>
+                            <option value="route">{t.debtors.sort.route}</option>
                         </select>
                     </div>
                 </div>
