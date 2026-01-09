@@ -208,48 +208,418 @@ function App() {
     return type === 'recovery';
   };
 
-  // --- CRUD Handlers (Lokaal) ---
+  // --- CRUD Handlers (Met Supabase sync) ---
 
-  const handleUpdateVehicle = (updatedVehicle: Vehicle) => {
-    setFleet(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
-  };
+  const handleUpdateVehicle = async (updatedVehicle: Vehicle) => {
+    try {
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: updatedVehicle.organization_id || currentUser?.organization_id,
+        license_plate: updatedVehicle.license_plate || null,
+        brand: updatedVehicle.brand || null,
+        type: updatedVehicle.type,
+        license_required: updatedVehicle.license_required,
+        capacity_chilled: updatedVehicle.capacity.chilled,
+        capacity_frozen: updatedVehicle.capacity.frozen,
+        fuel_type: updatedVehicle.fuel_type,
+        max_range_km: updatedVehicle.max_range_km,
+        consumption_per_100km: updatedVehicle.consumption_per_100km,
+        fuel_price_per_unit: updatedVehicle.fuel_price_per_unit,
+        co2_emission_per_km: updatedVehicle.co2_emission_per_km,
+        is_available: updatedVehicle.is_available,
+        hourly_rate: updatedVehicle.hourly_rate,
+        monthly_fixed_cost: updatedVehicle.monthly_fixed_cost,
+        assigned_driver_id: updatedVehicle.assigned_driver_id || null
+      };
 
-  const handleAddVehicle = (newVehicle: Vehicle) => {
-    if (currentUser) {
-      setFleet(prev => [...prev, { ...newVehicle, organization_id: currentUser.organization_id }]);
+      const { error } = await supabase
+        .from('vehicles')
+        .update(dbData)
+        .eq('id', updatedVehicle.id);
+
+      if (error) {
+        console.error('Error updating vehicle in Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
+      setFleet(prev => prev.map(v => v.id === updatedVehicle.id ? updatedVehicle : v));
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+      alert('Fout bij opslaan van voertuig');
     }
   };
 
-  const handleDeleteVehicle = (id: string) => {
-    setFleet(prev => prev.filter(v => v.id !== id));
-  };
+  const handleAddVehicle = async (newVehicle: Vehicle) => {
+    if (!currentUser) return;
 
-  const handleAddDriver = (newDriver: Driver) => {
-      if (currentUser) {
-        setDrivers(prev => [...prev, { ...newDriver, organization_id: currentUser.organization_id }]);
+    try {
+      const vehicleWithOrg = { ...newVehicle, organization_id: currentUser.organization_id };
+      
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        id: vehicleWithOrg.id,
+        organization_id: vehicleWithOrg.organization_id,
+        license_plate: vehicleWithOrg.license_plate || null,
+        brand: vehicleWithOrg.brand || null,
+        type: vehicleWithOrg.type,
+        license_required: vehicleWithOrg.license_required,
+        capacity_chilled: vehicleWithOrg.capacity.chilled,
+        capacity_frozen: vehicleWithOrg.capacity.frozen,
+        fuel_type: vehicleWithOrg.fuel_type,
+        max_range_km: vehicleWithOrg.max_range_km,
+        consumption_per_100km: vehicleWithOrg.consumption_per_100km,
+        fuel_price_per_unit: vehicleWithOrg.fuel_price_per_unit,
+        co2_emission_per_km: vehicleWithOrg.co2_emission_per_km,
+        is_available: vehicleWithOrg.is_available,
+        hourly_rate: vehicleWithOrg.hourly_rate,
+        monthly_fixed_cost: vehicleWithOrg.monthly_fixed_cost,
+        assigned_driver_id: vehicleWithOrg.assigned_driver_id || null
+      };
+
+      const { error } = await supabase
+        .from('vehicles')
+        .insert(dbData);
+
+      if (error) {
+        console.error('Error adding vehicle to Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
       }
+
+      // Update lokale state alleen bij succes
+      setFleet(prev => [...prev, vehicleWithOrg]);
+    } catch (error) {
+      console.error('Error adding vehicle:', error);
+      alert('Fout bij toevoegen van voertuig');
+    }
   };
 
-  const handleUpdateDriver = (updatedDriver: Driver) => {
+  const handleDeleteVehicle = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting vehicle from Supabase:', error);
+        alert('Fout bij verwijderen: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
+      setFleet(prev => prev.filter(v => v.id !== id));
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      alert('Fout bij verwijderen van voertuig');
+    }
+  };
+
+  const handleAddDriver = async (newDriver: Driver) => {
+    if (!currentUser) return;
+
+    try {
+      const driverWithOrg = { ...newDriver, organization_id: currentUser.organization_id };
+      
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: driverWithOrg.organization_id,
+        name: driverWithOrg.name,
+        email: driverWithOrg.email || null,
+        phone: driverWithOrg.phone || null,
+        licenses: driverWithOrg.licenses || [],
+        working_days: driverWithOrg.working_days || [1, 2, 3, 4, 5],
+        is_active: driverWithOrg.is_active ?? true,
+        photo_url: driverWithOrg.photo_url || null,
+        known_route_ids: driverWithOrg.known_route_ids || []
+      };
+
+      const { data, error } = await supabase
+        .from('drivers')
+        .insert(dbData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding driver to Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state met de nieuwe ID van Supabase
+      const mappedDriver: Driver = {
+        ...driverWithOrg,
+        id: data.id
+      };
+      setDrivers(prev => [...prev, mappedDriver]);
+    } catch (error) {
+      console.error('Error adding driver:', error);
+      alert('Fout bij toevoegen van chauffeur');
+    }
+  };
+
+  const handleUpdateDriver = async (updatedDriver: Driver) => {
+    try {
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: updatedDriver.organization_id || currentUser?.organization_id,
+        name: updatedDriver.name,
+        email: updatedDriver.email || null,
+        phone: updatedDriver.phone || null,
+        licenses: updatedDriver.licenses || [],
+        working_days: updatedDriver.working_days || [1, 2, 3, 4, 5],
+        is_active: updatedDriver.is_active ?? true,
+        photo_url: updatedDriver.photo_url || null,
+        known_route_ids: updatedDriver.known_route_ids || []
+      };
+
+      const { error } = await supabase
+        .from('drivers')
+        .update(dbData)
+        .eq('id', updatedDriver.id);
+
+      if (error) {
+        console.error('Error updating driver in Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
       setDrivers(prev => prev.map(d => d.id === updatedDriver.id ? updatedDriver : d));
+    } catch (error) {
+      console.error('Error updating driver:', error);
+      alert('Fout bij opslaan van chauffeur');
+    }
   };
 
-  const handleDeleteDriver = (id: string) => {
-      setDrivers(prev => prev.filter(d => d.id !== id));
-  };
+  const handleDeleteDriver = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('drivers')
+        .delete()
+        .eq('id', id);
 
-  const handleAddDebtor = (newDebtor: Debtor) => {
-      if (currentUser) {
-        setDebtors(prev => [...prev, { ...newDebtor, organization_id: currentUser.organization_id }]);
+      if (error) {
+        console.error('Error deleting driver from Supabase:', error);
+        alert('Fout bij verwijderen: ' + error.message);
+        return;
       }
+
+      // Update lokale state alleen bij succes
+      setDrivers(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Error deleting driver:', error);
+      alert('Fout bij verwijderen van chauffeur');
+    }
   };
 
-  const handleUpdateDebtor = (updatedDebtor: Debtor) => {
+  const handleAddDebtor = async (newDebtor: Debtor) => {
+    if (!currentUser) return;
+
+    try {
+      const debtorWithOrg = { ...newDebtor, organization_id: currentUser.organization_id };
+      
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: debtorWithOrg.organization_id,
+        debtor_number: debtorWithOrg.debtor_number || null,
+        foundation_name: debtorWithOrg.foundation_name || null,
+        name: debtorWithOrg.name,
+        address: debtorWithOrg.address,
+        postcode: debtorWithOrg.postcode,
+        city: debtorWithOrg.city,
+        container_location: debtorWithOrg.container_location || null,
+        delivery_days: debtorWithOrg.delivery_days || [],
+        time_window_start: debtorWithOrg.time_window_start,
+        time_window_end: debtorWithOrg.time_window_end,
+        drop_time_minutes: debtorWithOrg.drop_time_minutes || 15,
+        containers_chilled: debtorWithOrg.containers_chilled || 0,
+        containers_frozen: debtorWithOrg.containers_frozen || 0,
+        fixed_route_id: debtorWithOrg.fixed_route_id || null
+      };
+
+      const { data, error } = await supabase
+        .from('debtors')
+        .insert(dbData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding debtor to Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state met de nieuwe ID van Supabase
+      const mappedDebtor: Debtor = {
+        ...debtorWithOrg,
+        id: data.id
+      };
+      setDebtors(prev => [...prev, mappedDebtor]);
+    } catch (error) {
+      console.error('Error adding debtor:', error);
+      alert('Fout bij toevoegen van debiteur');
+    }
+  };
+
+  const handleUpdateDebtor = async (updatedDebtor: Debtor) => {
+    try {
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: updatedDebtor.organization_id || currentUser?.organization_id,
+        debtor_number: updatedDebtor.debtor_number || null,
+        foundation_name: updatedDebtor.foundation_name || null,
+        name: updatedDebtor.name,
+        address: updatedDebtor.address,
+        postcode: updatedDebtor.postcode,
+        city: updatedDebtor.city,
+        container_location: updatedDebtor.container_location || null,
+        delivery_days: updatedDebtor.delivery_days || [],
+        time_window_start: updatedDebtor.time_window_start,
+        time_window_end: updatedDebtor.time_window_end,
+        drop_time_minutes: updatedDebtor.drop_time_minutes || 15,
+        containers_chilled: updatedDebtor.containers_chilled || 0,
+        containers_frozen: updatedDebtor.containers_frozen || 0,
+        fixed_route_id: updatedDebtor.fixed_route_id || null
+      };
+
+      const { error } = await supabase
+        .from('debtors')
+        .update(dbData)
+        .eq('id', updatedDebtor.id);
+
+      if (error) {
+        console.error('Error updating debtor in Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
       setDebtors(prev => prev.map(d => d.id === updatedDebtor.id ? updatedDebtor : d));
+    } catch (error) {
+      console.error('Error updating debtor:', error);
+      alert('Fout bij opslaan van debiteur');
+    }
   };
 
-  const handleDeleteDebtor = (id: string) => {
+  const handleDeleteDebtor = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('debtors')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting debtor from Supabase:', error);
+        alert('Fout bij verwijderen: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
       setDebtors(prev => prev.filter(d => d.id !== id));
+    } catch (error) {
+      console.error('Error deleting debtor:', error);
+      alert('Fout bij verwijderen van debiteur');
+    }
+  };
+
+  const handleAddFixedRoute = async (newRoute: FixedRoute) => {
+    if (!currentUser) return;
+
+    try {
+      const routeWithOrg = { ...newRoute, organization_id: currentUser.organization_id };
+      
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        id: routeWithOrg.id,
+        organization_id: routeWithOrg.organization_id,
+        name: routeWithOrg.name,
+        region: routeWithOrg.region || null,
+        standard_start_time: routeWithOrg.standard_start_time,
+        duration_hours: routeWithOrg.duration_hours,
+        required_license: routeWithOrg.required_license,
+        requires_electric: routeWithOrg.requires_electric || false,
+        color: routeWithOrg.color || null,
+        allowed_days: routeWithOrg.allowed_days || [1, 2, 3, 4, 5],
+        capacity_chilled: routeWithOrg.capacity.chilled,
+        capacity_frozen: routeWithOrg.capacity.frozen
+      };
+
+      const { error } = await supabase
+        .from('fixed_routes')
+        .insert(dbData);
+
+      if (error) {
+        console.error('Error adding fixed route to Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
+      setFixedRoutes(prev => [...prev, routeWithOrg]);
+    } catch (error) {
+      console.error('Error adding fixed route:', error);
+      alert('Fout bij toevoegen van vaste route');
+    }
+  };
+
+  const handleUpdateFixedRoute = async (updatedRoute: FixedRoute) => {
+    try {
+      // Converteer naar database formaat (snake_case)
+      const dbData = {
+        organization_id: updatedRoute.organization_id || currentUser?.organization_id,
+        name: updatedRoute.name,
+        region: updatedRoute.region || null,
+        standard_start_time: updatedRoute.standard_start_time,
+        duration_hours: updatedRoute.duration_hours,
+        required_license: updatedRoute.required_license,
+        requires_electric: updatedRoute.requires_electric || false,
+        color: updatedRoute.color || null,
+        allowed_days: updatedRoute.allowed_days || [1, 2, 3, 4, 5],
+        capacity_chilled: updatedRoute.capacity.chilled,
+        capacity_frozen: updatedRoute.capacity.frozen
+      };
+
+      const { error } = await supabase
+        .from('fixed_routes')
+        .update(dbData)
+        .eq('id', updatedRoute.id);
+
+      if (error) {
+        console.error('Error updating fixed route in Supabase:', error);
+        alert('Fout bij opslaan: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
+      setFixedRoutes(prev => prev.map(r => r.id === updatedRoute.id ? updatedRoute : r));
+    } catch (error) {
+      console.error('Error updating fixed route:', error);
+      alert('Fout bij opslaan van vaste route');
+    }
+  };
+
+  const handleDeleteFixedRoute = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('fixed_routes')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting fixed route from Supabase:', error);
+        alert('Fout bij verwijderen: ' + error.message);
+        return;
+      }
+
+      // Update lokale state alleen bij succes
+      setFixedRoutes(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Error deleting fixed route:', error);
+      alert('Fout bij verwijderen van vaste route');
+    }
   };
 
   // Logic to copy selected debtors to the planning sandbox
@@ -374,7 +744,7 @@ function App() {
               {currentView === 'fleet' && <FleetManagement vehicles={fleet} drivers={drivers} onUpdateVehicle={handleUpdateVehicle} onAddVehicle={handleAddVehicle} onDeleteVehicle={handleDeleteVehicle} onToggleAvailability={() => {}} language={language}/>}
               {currentView === 'debtors' && <DebtorManagement language={language} debtors={debtors} fixedRoutes={fixedRoutes} onAddDebtor={handleAddDebtor} onUpdateDebtor={handleUpdateDebtor} onDeleteDebtor={handleDeleteDebtor} onCopyToPlanning={handleCopyToPlanning} />}
               {currentView === 'drivers' && <DriverPlanner language={language} drivers={drivers} vehicles={fleet} setDrivers={setDrivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} onDeleteDriver={handleDeleteDriver} />}
-              {currentView === 'fixedRoutes' && <FixedRoutePlanner language={language} drivers={drivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} vehicles={fleet} debtors={debtors} onUpdateDebtor={handleUpdateDebtor} />}
+              {currentView === 'fixedRoutes' && <FixedRoutePlanner language={language} drivers={drivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} vehicles={fleet} debtors={debtors} onUpdateDebtor={handleUpdateDebtor} onAddFixedRoute={handleAddFixedRoute} onUpdateFixedRoute={handleUpdateFixedRoute} onDeleteFixedRoute={handleDeleteFixedRoute} />}
               {currentView === 'performance' && <PerformanceModule language={language} drivers={drivers} fixedRoutes={fixedRoutes} />}
             </>
           )}

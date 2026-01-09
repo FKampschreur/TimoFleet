@@ -11,9 +11,12 @@ interface FixedRoutePlannerProps {
     vehicles?: Vehicle[];
     debtors: Debtor[];
     onUpdateDebtor?: (debtor: Debtor) => void;
+    onAddFixedRoute?: (route: FixedRoute) => Promise<void>;
+    onUpdateFixedRoute?: (route: FixedRoute) => Promise<void>;
+    onDeleteFixedRoute?: (id: string) => Promise<void>;
 }
 
-const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers, fixedRoutes, setFixedRoutes, vehicles = [], debtors = [], onUpdateDebtor }) => {
+const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers, fixedRoutes, setFixedRoutes, vehicles = [], debtors = [], onUpdateDebtor, onAddFixedRoute, onUpdateFixedRoute, onDeleteFixedRoute }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedCell, setSelectedCell] = useState<{routeId: string, dateIso: string, routeName: string} | null>(null);
     const [editingRoute, setEditingRoute] = useState<FixedRoute | null>(null);
@@ -120,24 +123,37 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
         setEditingRoute({ ...editingRoute, allowed_days: newDays });
     };
 
-    const saveRouteChanges = () => {
+    const saveRouteChanges = async () => {
         if (!editingRoute) return;
-        setFixedRoutes(prev => {
-            const exists = prev.some(r => r.id === editingRoute.id);
-            if (exists) {
-                return prev.map(r => r.id === editingRoute.id ? editingRoute : r);
+        const exists = fixedRoutes.some(r => r.id === editingRoute.id);
+        
+        if (exists) {
+            // Update existing route
+            if (onUpdateFixedRoute) {
+                await onUpdateFixedRoute(editingRoute);
             } else {
-                return [...prev, editingRoute];
+                setFixedRoutes(prev => prev.map(r => r.id === editingRoute.id ? editingRoute : r));
             }
-        });
+        } else {
+            // Add new route
+            if (onAddFixedRoute) {
+                await onAddFixedRoute(editingRoute);
+            } else {
+                setFixedRoutes(prev => [...prev, editingRoute]);
+            }
+        }
         setEditingRoute(null);
     };
 
-    const handleDeleteRoute = () => {
+    const handleDeleteRoute = async () => {
         if (!editingRoute) return;
         if (window.confirm(t.fixedRoutes.edit.deleteConfirm)) {
-             setFixedRoutes(prev => prev.filter(r => r.id !== editingRoute.id));
-             setEditingRoute(null);
+            if (onDeleteFixedRoute) {
+                await onDeleteFixedRoute(editingRoute.id);
+            } else {
+                setFixedRoutes(prev => prev.filter(r => r.id !== editingRoute.id));
+            }
+            setEditingRoute(null);
         }
     };
 
