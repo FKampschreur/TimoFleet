@@ -1,21 +1,21 @@
-import React, { useState, useMemo } from 'react';
-import { TimeRecord, Driver, FixedRoute, Language } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { TimeRecord, Driver, FixedRoute, Language, User } from '../types';
 import { translations } from '../translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { TrendingUp, Clock, Calendar, User, Map, Plus, ArrowRight, Lightbulb, Trophy, AlertTriangle, Timer, Activity, Edit2, Trash2, X, Check, Save, Ban, RotateCcw, MessageSquareWarning, Filter } from 'lucide-react';
+import { TrendingUp, Clock, Calendar, User as UserIcon, Map, Plus, ArrowRight, Lightbulb, Trophy, AlertTriangle, Timer, Activity, Edit2, Trash2, X, Check, Save, Ban, RotateCcw, MessageSquareWarning, Filter } from 'lucide-react';
+import { supabase } from '../services/supabaseClient';
 
 interface PerformanceModuleProps {
     language: Language;
     drivers: Driver[];
     fixedRoutes: FixedRoute[];
+    currentUser: User | null;
 }
 
-// Mock initial data if not provided (in a real app this comes from Supabase)
-import { MOCK_TIME_RECORDS } from '../constants';
-
-const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers, fixedRoutes }) => {
+const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers, fixedRoutes, currentUser }) => {
     const [activeTab, setActiveTab] = useState<'input' | 'analysis'>('analysis');
-    const [records, setRecords] = useState<TimeRecord[]>(MOCK_TIME_RECORDS);
+    const [records, setRecords] = useState<TimeRecord[]>([]);
+    const [isLoadingRecords, setIsLoadingRecords] = useState(true);
     const [selectedRouteId, setSelectedRouteId] = useState<string>('');
     const [editingRecord, setEditingRecord] = useState<TimeRecord | null>(null);
     const [showExcludedModal, setShowExcludedModal] = useState(false);
@@ -36,7 +36,57 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
 
     const excludedCount = records.filter(r => r.exclude_from_analysis).length;
 
-    const handleAddRecord = () => {
+    // Load time records from Supabase
+    useEffect(() => {
+        const loadTimeRecords = async () => {
+            if (!currentUser?.organization_id) {
+                setIsLoadingRecords(false);
+                return;
+            }
+
+            setIsLoadingRecords(true);
+            try {
+                const { data, error } = await supabase
+                    .from('time_records')
+                    .select('*')
+                    .order('date', { ascending: false })
+                    .order('created_at', { ascending: false });
+
+                if (error) {
+                    console.error('Error loading time records:', error);
+                    alert('Fout bij laden van tijdregistraties: ' + error.message);
+                } else {
+                    const mappedRecords: TimeRecord[] = (data || []).map((r: any) => ({
+                        id: r.id,
+                        organization_id: r.organization_id,
+                        date: r.date,
+                        driver_id: r.driver_id,
+                        route_id: r.route_id,
+                        start_time: r.start_time,
+                        end_time: r.end_time,
+                        duration_minutes: r.duration_minutes,
+                        remarks: r.remarks || undefined,
+                        exclude_from_analysis: r.exclude_from_analysis || false
+                    }));
+                    setRecords(mappedRecords);
+                }
+            } catch (err) {
+                console.error('Error loading time records:', err);
+                alert('Fout bij laden van tijdregistraties');
+            } finally {
+                setIsLoadingRecords(false);
+            }
+        };
+
+        loadTimeRecords();
+    }, [currentUser?.organization_id]);
+
+    const handleAddRecord = async () => {
+        if (!currentUser?.organization_id) {
+            alert("Je moet ingelogd zijn om tijdregistraties toe te voegen");
+            return;
+        }
+
         if (!newRecord.date || !newRecord.driver_id || !newRecord.route_id || !newRecord.start_time || !newRecord.end_time) {
             alert("Vul alle velden in");
             return;
@@ -51,44 +101,144 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
             return;
         }
 
-        const record: TimeRecord = {
-            id: `TR-${Date.now()}`,
-            organization_id: 'org-1',
-            date: newRecord.date,
-            driver_id: newRecord.driver_id,
-            route_id: newRecord.route_id,
-            start_time: newRecord.start_time,
-            end_time: newRecord.end_time,
-            duration_minutes: durationMinutes,
-            remarks: newRecord.remarks
-        };
+        try {
+            const { data, error } = await supabase
+                .from('time_records')
+                .insert({
+                    organization_id: currentUser.organization_id,
+                    date: newRecord.date,
+                    driver_id: newRecord.driver_id,
+                    route_id: newRecord.route_id,
+                    start_time: newRecord.start_time,
+                    end_time: newRecord.end_time,
+                    duration_minutes: durationMinutes,
+                    remarks: newRecord.remarks || null,
+                    exclude_from_analysis: false
+                })
+                .select()
+                .single();
 
-        setRecords(prev => [...prev, record]);
-        // Reset form slightly but keep date
-        setNewRecord(prev => ({ ...prev, driver_id: '', route_id: '', remarks: '' }));
-    };
+            if (error) {
+                console.error('Error adding time record:', error);
+                alert('Fout bij toevoegen van tijdregistratie: ' + error.message);
+                return;
+            }
 
-    const handleDeleteRecord = (id: string) => {
-        if (window.confirm(t.performance.modal.deleteConfirm)) {
-            setRecords(prev => prev.filter(r => r.id !== id));
-            if (editingRecord?.id === id) setEditingRecord(null);
+            const newRecordMapped: TimeRecord = {
+                id: data.id,
+                organization_id: data.organization_id,
+                date: data.date,
+                driver_id: data.driver_id,
+                route_id: data.route_id,
+                start_time: data.start_time,
+                end_time: data.end_time,
+                duration_minutes: data.duration_minutes,
+                remarks: data.remarks || undefined,
+                exclude_from_analysis: data.exclude_from_analysis || false
+            };
+
+            setRecords(prev => [newRecordMapped, ...prev]);
+            // Reset form slightly but keep date
+            setNewRecord(prev => ({ ...prev, driver_id: '', route_id: '', remarks: '' }));
+        } catch (err) {
+            console.error('Error adding time record:', err);
+            alert('Fout bij toevoegen van tijdregistratie');
         }
     };
 
-    const handleRestoreRecord = (id: string) => {
-        setRecords(prev => prev.map(r => r.id === id ? { ...r, exclude_from_analysis: false } : r));
+    const handleDeleteRecord = async (id: string) => {
+        if (!window.confirm(t.performance.modal.deleteConfirm)) {
+            return;
+        }
+
+        try {
+            const { error } = await supabase
+                .from('time_records')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error deleting time record:', error);
+                alert('Fout bij verwijderen van tijdregistratie: ' + error.message);
+                return;
+            }
+
+            setRecords(prev => prev.filter(r => r.id !== id));
+            if (editingRecord?.id === id) setEditingRecord(null);
+        } catch (err) {
+            console.error('Error deleting time record:', err);
+            alert('Fout bij verwijderen van tijdregistratie');
+        }
     };
 
-    const handleSaveEdit = (updatedRecord: TimeRecord) => {
+    const handleRestoreRecord = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('time_records')
+                .update({ exclude_from_analysis: false })
+                .eq('id', id);
+
+            if (error) {
+                console.error('Error restoring time record:', error);
+                alert('Fout bij herstellen van tijdregistratie: ' + error.message);
+                return;
+            }
+
+            setRecords(prev => prev.map(r => r.id === id ? { ...r, exclude_from_analysis: false } : r));
+        } catch (err) {
+            console.error('Error restoring time record:', err);
+            alert('Fout bij herstellen van tijdregistratie');
+        }
+    };
+
+    const handleSaveEdit = async (updatedRecord: TimeRecord) => {
         // Recalculate duration if times changed
         const start = new Date(`1970-01-01T${updatedRecord.start_time}:00`);
         const end = new Date(`1970-01-01T${updatedRecord.end_time}:00`);
         const durationMinutes = (end.getTime() - start.getTime()) / 60000;
 
-        const finalRecord = { ...updatedRecord, duration_minutes: durationMinutes };
+        try {
+            const { data, error } = await supabase
+                .from('time_records')
+                .update({
+                    date: updatedRecord.date,
+                    driver_id: updatedRecord.driver_id,
+                    route_id: updatedRecord.route_id,
+                    start_time: updatedRecord.start_time,
+                    end_time: updatedRecord.end_time,
+                    duration_minutes: durationMinutes,
+                    remarks: updatedRecord.remarks || null,
+                    exclude_from_analysis: updatedRecord.exclude_from_analysis || false
+                })
+                .eq('id', updatedRecord.id)
+                .select()
+                .single();
 
-        setRecords(prev => prev.map(r => r.id === finalRecord.id ? finalRecord : r));
-        setEditingRecord(null);
+            if (error) {
+                console.error('Error updating time record:', error);
+                alert('Fout bij bijwerken van tijdregistratie: ' + error.message);
+                return;
+            }
+
+            const finalRecord: TimeRecord = {
+                id: data.id,
+                organization_id: data.organization_id,
+                date: data.date,
+                driver_id: data.driver_id,
+                route_id: data.route_id,
+                start_time: data.start_time,
+                end_time: data.end_time,
+                duration_minutes: data.duration_minutes,
+                remarks: data.remarks || undefined,
+                exclude_from_analysis: data.exclude_from_analysis || false
+            };
+
+            setRecords(prev => prev.map(r => r.id === finalRecord.id ? finalRecord : r));
+            setEditingRecord(null);
+        } catch (err) {
+            console.error('Error updating time record:', err);
+            alert('Fout bij bijwerken van tijdregistratie');
+        }
     };
 
     const analysisData = useMemo(() => {
@@ -243,18 +393,30 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                             <h4 className="font-black text-slate-900">Recente Registraties</h4>
                         </div>
                         <div className="overflow-x-auto flex-1">
-                            <table className="w-full text-left">
-                                <thead className="bg-slate-50 border-b border-slate-100">
-                                    <tr>
-                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.date}</th>
-                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.driver}</th>
-                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.route}</th>
-                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.performance.table.duration}</th>
-                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.performance.table.actions}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {[...records].reverse().slice(0, 10).map(rec => {
+                            {isLoadingRecords ? (
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="text-slate-400 text-sm font-bold">Laden...</div>
+                                </div>
+                            ) : (
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-50 border-b border-slate-100">
+                                        <tr>
+                                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.date}</th>
+                                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.driver}</th>
+                                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">{t.performance.table.route}</th>
+                                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.performance.table.duration}</th>
+                                            <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">{t.performance.table.actions}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {records.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm font-bold">
+                                                    Geen tijdregistraties gevonden. Voeg een nieuwe registratie toe.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            [...records].reverse().slice(0, 10).map(rec => {
                                         const drv = drivers.find(d => d.id === rec.driver_id);
                                         const rt = fixedRoutes.find(r => r.id === rec.route_id);
                                         return (
@@ -293,10 +455,12 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                                     </div>
                                                 </td>
                                             </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                            );
+                                        })
+                                        )}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 </div>

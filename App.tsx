@@ -745,7 +745,7 @@ function App() {
               {currentView === 'debtors' && <DebtorManagement language={language} debtors={debtors} fixedRoutes={fixedRoutes} onAddDebtor={handleAddDebtor} onUpdateDebtor={handleUpdateDebtor} onDeleteDebtor={handleDeleteDebtor} onCopyToPlanning={handleCopyToPlanning} />}
               {currentView === 'drivers' && <DriverPlanner language={language} drivers={drivers} vehicles={fleet} setDrivers={setDrivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} onUpdateDriver={handleUpdateDriver} onAddDriver={handleAddDriver} onDeleteDriver={handleDeleteDriver} />}
               {currentView === 'fixedRoutes' && <FixedRoutePlanner language={language} drivers={drivers} fixedRoutes={fixedRoutes} setFixedRoutes={setFixedRoutes} vehicles={fleet} debtors={debtors} onUpdateDebtor={handleUpdateDebtor} onAddFixedRoute={handleAddFixedRoute} onUpdateFixedRoute={handleUpdateFixedRoute} onDeleteFixedRoute={handleDeleteFixedRoute} />}
-              {currentView === 'performance' && <PerformanceModule language={language} drivers={drivers} fixedRoutes={fixedRoutes} />}
+              {currentView === 'performance' && <PerformanceModule language={language} drivers={drivers} fixedRoutes={fixedRoutes} currentUser={currentUser} />}
             </>
           )}
       </main>
