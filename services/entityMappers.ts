@@ -91,9 +91,14 @@ export const mapFixedRouteToDb = (route: FixedRoute, orgId: string): any => {
     capacity_frozen: route.capacity.frozen
   };
   
-  // Alleen id toevoegen als het bestaat (voor updates)
+  // id is verplicht voor fixed_routes (TEXT PRIMARY KEY, geen auto-generated UUID)
+  // Altijd toevoegen voor zowel nieuwe routes als updates
+  // BELANGRIJK: De ID moet uniek zijn over ALLE organisaties
   if (route.id) {
     dbData.id = route.id;
+    console.log('mapFixedRouteToDb: Route ID wordt toegevoegd:', route.id);
+  } else {
+    console.error('mapFixedRouteToDb: GEEN ID gevonden in route!', route);
   }
   
   return dbData;

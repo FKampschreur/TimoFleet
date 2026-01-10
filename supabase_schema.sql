@@ -167,39 +167,48 @@ ALTER TABLE time_records ENABLE ROW LEVEL SECURITY;
 
 -- ORGANIZATIONS: Gebruikers kunnen alleen hun eigen organisatie zien
 CREATE POLICY "Users see only their own organization" ON organizations
-  FOR ALL USING (id = get_user_organization_id());
+  FOR ALL USING (id = get_user_organization_id())
+  WITH CHECK (id = get_user_organization_id());
 
 -- PROFILES: Gebruikers kunnen alleen profielen van hun eigen organisatie zien
 CREATE POLICY "Users see only their own organization profiles" ON profiles
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- FIXED ROUTES: Gebruikers kunnen alleen routes van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization routes" ON fixed_routes
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- DRIVERS: Gebruikers kunnen alleen chauffeurs van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization drivers" ON drivers
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- VEHICLES: Gebruikers kunnen alleen voertuigen van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization vehicles" ON vehicles
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- DEBTORS: Gebruikers kunnen alleen debiteuren van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization debtors" ON debtors
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- DRIVER SCHEDULES: Gebruikers kunnen alleen roosters van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization schedules" ON driver_schedules
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- FIXED ROUTE ASSIGNMENTS: Gebruikers kunnen alleen toewijzingen van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization assignments" ON fixed_route_assignments
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- TIME RECORDS: Gebruikers kunnen alleen tijdregistraties van hun eigen organisatie zien/bewerken
 CREATE POLICY "Users manage only their own organization time records" ON time_records
-  FOR ALL USING (organization_id = get_user_organization_id());
+  FOR ALL USING (organization_id = get_user_organization_id())
+  WITH CHECK (organization_id = get_user_organization_id());
 
 -- ============================================================================
 -- INDEXES voor betere query performance

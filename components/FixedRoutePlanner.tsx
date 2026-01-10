@@ -146,21 +146,50 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
     };
 
     const handleAddRoute = () => {
-        const existingIds = fixedRoutes
-            .map(r => parseInt(r.id.split('-')[1]))
-            .filter(n => !isNaN(n));
+        // BELANGRIJK: Genereer ALTIJD een unieke ID die uniek is over ALLE organisaties
+        // De database PRIMARY KEY moet uniek zijn, niet alleen binnen één organisatie
+        let newId: string;
         
-        const nextNum = (Math.max(...existingIds, 0) + 1);
+        // Methode 1: Gebruik crypto.randomUUID() als beschikbaar (meest betrouwbaar)
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            const uuid = crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+            newId = `RT-${uuid}`;
+        } 
+        // Methode 2: Fallback met timestamp + meerdere random componenten voor maximale uniekheid
+        else {
+            const timestamp = Date.now();
+            const random1 = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+            const random2 = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+            const random3 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+            // Gebruik timestamp + 3 random delen voor maximale uniekheid
+            newId = `RT-${timestamp}-${random1}-${random2}-${random3}`;
+        }
+        
+        // Bepaal het volgende nummer voor de weergavenaam op basis van bestaande routes
+        // Dit is alleen voor de gebruiksvriendelijke naam, niet voor de database ID
+        const existingIds = fixedRoutes
+            .map(r => {
+                // Probeer nummer te extraheren uit bestaande IDs (bijv. "RT-01" -> 1, "RT-AMSTERDAM-01" -> 1)
+                // Of uit de naam zelf (bijv. "01. Nieuwe Route" -> 1)
+                const nameMatch = r.name.match(/^(\d+)\./);
+                if (nameMatch) {
+                    return parseInt(nameMatch[1]);
+                }
+                const idMatch = r.id.match(/(?:^RT-)(\d+)(?:-|$)/);
+                return idMatch ? parseInt(idMatch[1]) : null;
+            })
+            .filter(n => n !== null) as number[];
+        
+        const nextNum = existingIds.length > 0 ? (Math.max(...existingIds) + 1) : 1;
         const nextNumStr = nextNum.toString().padStart(2, '0');
-        const newId = `RT-${nextNumStr}`;
         
         const colors = ['bg-emerald-500', 'bg-blue-500', 'bg-indigo-500', 'bg-purple-500', 'bg-orange-500', 'bg-teal-500', 'bg-cyan-500', 'bg-rose-500', 'bg-pink-500'];
         const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
         const newRoute: FixedRoute = {
-            id: newId,
+            id: newId, // ALTIJD unieke ID, ongeacht organisatie
             organization_id: 'temp-org',
-            name: `${nextNumStr}. Nieuwe Route`,
+            name: `${nextNumStr}. Nieuwe Route`, // Gebruiksvriendelijke naam met nummer
             region: 'Nieuwe Regio',
             standard_start_time: '06:00',
             duration_hours: 8,
@@ -171,6 +200,9 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
             assignments: {},
             capacity: { chilled: 0, frozen: 0 }
         };
+        
+        // Debug log om te verifiëren dat de ID correct wordt gegenereerd
+        console.log('Nieuwe route ID gegenereerd:', newId);
         
         setEditingRoute(newRoute);
     };

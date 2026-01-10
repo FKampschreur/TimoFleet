@@ -75,6 +75,12 @@ export const createAddHandler = <T extends { id: string }>(
     try {
       const entityWithOrg = { ...newEntity, organization_id: orgId };
       const dbData = config.mapToDb(entityWithOrg, orgId);
+      
+      // Debug logging voor fixed routes
+      if (config.tableName === 'fixed_routes') {
+        console.log('createAddHandler: Nieuwe route wordt toegevoegd met ID:', dbData.id);
+        console.log('createAddHandler: Volledige dbData:', dbData);
+      }
 
       const { data, error } = await supabase
         .from(config.tableName)
