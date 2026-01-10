@@ -9,7 +9,7 @@ interface FleetManagementProps {
   onToggleAvailability: (id: string) => void;
   onUpdateVehicle: (updatedVehicle: Vehicle) => void;
   onAddVehicle: (newVehicle: Vehicle) => void;
-  onDeleteVehicle: (id: string) => void;
+  onDeleteVehicle: (id: string) => void | Promise<void>;
   language: Language;
 }
 
@@ -247,7 +247,7 @@ const VehicleCard: React.FC<{
     drivers: Driver[],
     onToggle: (id: string) => void, 
     onEdit: (v: Vehicle) => void,
-    onDelete: (id: string) => void,
+    onDelete: (id: string) => void | Promise<void>,
     language: Language 
 }> = ({ vehicle, drivers, onToggle, onEdit, onDelete, language }) => {
     const t = translations[language];
@@ -304,13 +304,20 @@ const VehicleCard: React.FC<{
                             <Edit2 size={16} />
                         </button>
                         <button 
-                            onClick={() => {
+                            onClick={async (e) => {
+                                e.stopPropagation();
                                 if (window.confirm(t.vehicles.modal.confirmDelete)) {
-                                    onDelete(vehicle.id);
+                                    try {
+                                        await onDelete(vehicle.id);
+                                    } catch (error) {
+                                        console.error('Error deleting vehicle:', error);
+                                        alert('Fout bij verwijderen van voertuig. Probeer het opnieuw.');
+                                    }
                                 }
                             }}
                             className="text-slate-400 hover:text-red-600 transition-colors p-1"
                             title="Verwijderen"
+                            type="button"
                         >
                             <Trash2 size={16} />
                         </button>
