@@ -264,6 +264,16 @@ export const translations = {
             adviceReschedule: 'Bekijk of ritten verschoven kunnen worden naar',
             missing: 'Tekort',
             onDate: 'op'
+        },
+        clearRangeModal: {
+            title: 'Wis Planning Periode',
+            description: 'Verwijder alle roosters, route toewijzingen en voertuig toewijzingen voor de geselecteerde periode. Ziekte en verlof blijven behouden.',
+            startDate: 'Startdatum',
+            endDate: 'Einddatum',
+            clear: 'Wis Planning',
+            warning: 'Let op: Alle werkdiensten, route toewijzingen en voertuig toewijzingen in deze periode worden permanent verwijderd. Ziekte en verlof blijven staan.',
+            success: 'Planning succesvol gewist!',
+            confirm: 'Weet je zeker dat je alle planningen voor deze periode wilt wissen?'
         }
     },
     fixedRoutes: {

@@ -1,5 +1,6 @@
 import { User, UserRole } from './types';
 import { supabase } from './services/supabaseClient';
+import { MOCK_USERS } from './constants';
 
 const SESSION_KEY = 'timo_fleet_session_v1';
 
@@ -111,7 +112,33 @@ export const login = async (email: string, password: string): Promise<User> => {
     };
 
     // 4. Sla user op in localStorage voor fallback (optioneel)
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    // Met error handling voor localStorage quota
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    } catch (error: any) {
+      // Als localStorage vol zit, probeer oude data te verwijderen
+      if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+        console.warn('⚠️ localStorage vol, probeer oude data te verwijderen...');
+        try {
+          // Verwijder alleen oude sessie data (niet Supabase data)
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('timo_fleet_') && key !== SESSION_KEY) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => localStorage.removeItem(key));
+          // Probeer opnieuw
+          localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        } catch (retryError) {
+          console.warn('⚠️ Kon niet opslaan in localStorage, maar sessie blijft actief via Supabase');
+          // Sessie blijft werken via Supabase, localStorage is alleen fallback
+        }
+      } else {
+        console.warn('⚠️ localStorage fout:', error);
+      }
+    }
   
     return user;
   } catch (error: any) {
@@ -136,7 +163,13 @@ export const register = async (email: string, password: string, name: string): P
   };
   
   // In demo slaan we de nieuwe user ook op in sessie (auto-login na registratie)
-  localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+  } catch (error: any) {
+    if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+      console.warn('⚠️ localStorage vol, skip opslag (niet kritiek voor demo)');
+    }
+  }
   
   return newUser;
 };
@@ -169,7 +202,13 @@ export const updateProfile = async (id: string, updates: Partial<User>): Promise
         const current = await getCurrentUser();
         if (current && current.id === id) {
             const updated = { ...current, ...updates };
-            localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+            try {
+              localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
+            } catch (error: any) {
+              if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+                console.warn('⚠️ localStorage vol, skip update (niet kritiek)');
+              }
+            }
         }
     } catch (error) {
         console.error('Error updating profile:', error);
@@ -211,7 +250,13 @@ export const getCurrentUser = async (): Promise<User | null> => {
         };
 
         // Update localStorage als fallback
-        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        try {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+        } catch (error: any) {
+          if (error?.name === 'QuotaExceededError' || error?.message?.includes('quota')) {
+            console.warn('⚠️ localStorage vol, skip opslag (Supabase sessie blijft actief)');
+          }
+        }
         
         return user;
     } catch (error) {
@@ -247,4 +292,25 @@ export const updateUser = async (updatedUser: User): Promise<void> => {
 
 export const deleteUser = async (userId: string): Promise<void> => {
     console.log("Mock delete user:", userId);
+};
+
+/**
+ * Ruimt localStorage op door oude TimoFleet data te verwijderen
+ * Dit kan helpen als localStorage vol zit
+ */
+export const clearLocalStorageCache = (): void => {
+    try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            // Verwijder alleen TimoFleet cache data, niet Supabase sessie data
+            if (key && key.startsWith('timo_fleet_') && key !== SESSION_KEY) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log(`✅ ${keysToRemove.length} oude cache items verwijderd`);
+    } catch (error) {
+        console.error('❌ Fout bij opschonen localStorage:', error);
+    }
 };

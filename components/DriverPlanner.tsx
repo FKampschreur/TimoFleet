@@ -53,6 +53,11 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
     const [autoPlanStart, setAutoPlanStart] = useState(new Date().toISOString().split('T')[0]);
     const [autoPlanEnd, setAutoPlanEnd] = useState(new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]);
     
+    // Clear Range State
+    const [showClearRangeModal, setShowClearRangeModal] = useState(false);
+    const [clearRangeStart, setClearRangeStart] = useState(new Date().toISOString().split('T')[0]);
+    const [clearRangeEnd, setClearRangeEnd] = useState(new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]);
+    
     // Advice State
     const [showAdviceModal, setShowAdviceModal] = useState(false);
     const [shortageReport, setShortageReport] = useState<ShortageReport[]>([]);
@@ -143,6 +148,16 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
         setAutoPlanStart(toLocalYMD(startOfWeek));
         setAutoPlanEnd(toLocalYMD(endOfWeek));
         setShowAutoPlanModal(true);
+    };
+
+    const handleClearRangeClick = () => {
+        // Automatically set the range to the currently visible week
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+
+        setClearRangeStart(toLocalYMD(startOfWeek));
+        setClearRangeEnd(toLocalYMD(endOfWeek));
+        setShowClearRangeModal(true);
     };
 
     // --- AI AUTO-PLANNER LOGIC ---
@@ -331,6 +346,49 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
         } else {
             alert(t.drivers.autoPlanModal.success);
         }
+    };
+
+    // --- CLEAR DATE RANGE FUNCTION ---
+    const clearDateRange = () => {
+        if (!setFixedRoutes) return;
+
+        const start = new Date(clearRangeStart);
+        const end = new Date(clearRangeEnd);
+        
+        let newDrivers = [...drivers];
+        let newFixedRoutes = [...fixedRoutes];
+
+        // Loop through each day in range
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dateIso = d.toISOString().split('T')[0];
+
+            // 1. Clear WORK assignments for this day (but keep SICK/VACATION/TRAINING/ROSTER_FREE)
+            newDrivers = newDrivers.map(drv => {
+                const existing = drv.schedule[dateIso];
+                if (existing && existing.type !== 'WORK') {
+                    return drv; // Keep leave/training/roster free
+                }
+                const newSchedule = { ...drv.schedule };
+                delete newSchedule[dateIso]; // Clear WORK
+                return { ...drv, schedule: newSchedule };
+            });
+
+            // 2. Clear route and vehicle assignments for this day
+            newFixedRoutes = newFixedRoutes.map(r => {
+                const newAssignments = { ...r.assignments };
+                delete newAssignments[dateIso];
+                
+                const newVehicleAssignments = { ...(r.vehicleAssignments || {}) };
+                delete newVehicleAssignments[dateIso];
+
+                return { ...r, assignments: newAssignments, vehicleAssignments: newVehicleAssignments };
+            });
+        }
+
+        setDrivers(newDrivers);
+        setFixedRoutes(newFixedRoutes);
+        setShowClearRangeModal(false);
+        alert(t.drivers.clearRangeModal.success);
     };
 
     const filteredDrivers = useMemo(() => {
@@ -522,6 +580,14 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
                         className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
                     >
                         <Sparkles size={18} /> {t.drivers.autoPlan}
+                    </button>
+                    
+                    {/* CLEAR RANGE BUTTON */}
+                    <button 
+                        onClick={handleClearRangeClick}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md active:scale-95"
+                    >
+                        <Trash2 size={18} /> Wis Planning
                     </button>
 
                     <button 
@@ -772,6 +838,81 @@ const DriverPlanner: React.FC<DriverPlannerProps> = ({
                             >
                                 <Sparkles size={20} /> {t.drivers.autoPlanModal.generate}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Clear Range Modal */}
+            {showClearRangeModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+                        <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-red-50">
+                            <div>
+                                <h3 className="text-lg font-black text-red-900 flex items-center gap-2">
+                                    <Trash2 size={20} /> {t.drivers.clearRangeModal.title}
+                                </h3>
+                            </div>
+                            <button onClick={() => setShowClearRangeModal(false)} className="p-2 bg-white border border-slate-200 hover:bg-slate-50 rounded-full text-slate-400 hover:text-slate-900 transition-all">
+                                <X size={18} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 text-sm text-red-800 leading-relaxed">
+                                {t.drivers.clearRangeModal.description}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">
+                                        {t.drivers.clearRangeModal.startDate}
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={clearRangeStart}
+                                        onChange={(e) => setClearRangeStart(e.target.value)}
+                                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">
+                                        {t.drivers.clearRangeModal.endDate}
+                                    </label>
+                                    <input 
+                                        type="date" 
+                                        value={clearRangeEnd}
+                                        onChange={(e) => setClearRangeEnd(e.target.value)}
+                                        className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-red-500 outline-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
+                                <AlertOctagon size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                                <div className="text-xs text-amber-800 font-medium">
+                                    {t.drivers.clearRangeModal.warning}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => setShowClearRangeModal(false)}
+                                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-sm font-bold transition-all active:scale-95"
+                                >
+                                    Annuleren
+                                </button>
+                                <button 
+                                    onClick={() => {
+                                        if (confirm(t.drivers.clearRangeModal.confirm)) {
+                                            clearDateRange();
+                                        }
+                                    }}
+                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-sm font-black shadow-lg hover:shadow-red-500/25 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={18} /> {t.drivers.clearRangeModal.clear}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
