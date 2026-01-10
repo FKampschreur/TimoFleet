@@ -27,6 +27,10 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
     const [analysisStartDate, setAnalysisStartDate] = useState(new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0]); // Default 1 month ago
     const [analysisEndDate, setAnalysisEndDate] = useState(new Date().toISOString().split('T')[0]); // Default today
     const [analysisDayOfWeek, setAnalysisDayOfWeek] = useState<string>('ALL'); // 'ALL' or '0'-'6'
+    
+    // Filters for Recent Records
+    const [filterDriverId, setFilterDriverId] = useState<string>('');
+    const [filterRouteId, setFilterRouteId] = useState<string>('');
 
     const t = translations[language] || translations.nl; // Fallback naar NL als language niet bestaat
 
@@ -38,6 +42,28 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
     });
 
     const excludedCount = records.filter(r => r.exclude_from_analysis).length;
+
+    // Filtered recent records
+    const filteredRecentRecords = useMemo(() => {
+        let filtered = [...records].reverse();
+        
+        if (filterDriverId) {
+            filtered = filtered.filter(r => r.driver_id === filterDriverId);
+        }
+        
+        if (filterRouteId) {
+            filtered = filtered.filter(r => r.route_id === filterRouteId);
+        }
+        
+        return filtered.slice(0, 50); // Show max 50 filtered results
+    }, [records, filterDriverId, filterRouteId]);
+
+    const hasActiveFilters = filterDriverId !== '' || filterRouteId !== '';
+    
+    const clearFilters = () => {
+        setFilterDriverId('');
+        setFilterRouteId('');
+    };
 
     // Load time records from Supabase
     useEffect(() => {
@@ -435,7 +461,49 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                     {/* Recent Table */}
                     <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                            <h4 className="font-black text-slate-900">Recente Registraties</h4>
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-black text-slate-900">Recente Registraties</h4>
+                                {hasActiveFilters && (
+                                    <button
+                                        onClick={clearFilters}
+                                        className="text-xs font-bold text-slate-500 hover:text-slate-700 flex items-center gap-1"
+                                    >
+                                        <X size={12} /> Filters wissen
+                                    </button>
+                                )}
+                            </div>
+                            {/* Filter Bar */}
+                            <div className="mt-4 flex flex-wrap gap-3">
+                                <div className="flex-1 min-w-[150px]">
+                                    <select
+                                        value={filterDriverId}
+                                        onChange={(e) => setFilterDriverId(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    >
+                                        <option value="">Alle Chauffeurs</option>
+                                        {drivers.map(d => (
+                                            <option key={d.id} value={d.id}>{d.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="flex-1 min-w-[150px]">
+                                    <select
+                                        value={filterRouteId}
+                                        onChange={(e) => setFilterRouteId(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    >
+                                        <option value="">Alle Routes</option>
+                                        {fixedRoutes.map(r => (
+                                            <option key={r.id} value={r.id}>{r.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            {hasActiveFilters && (
+                                <div className="mt-2 text-xs text-slate-500 font-medium">
+                                    {filteredRecentRecords.length} registratie(s) gevonden
+                                </div>
+                            )}
                         </div>
                         <div className="overflow-x-auto flex-1">
                             {isLoadingRecords ? (
@@ -454,14 +522,16 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {records.length === 0 ? (
+                                        {filteredRecentRecords.length === 0 ? (
                                             <tr>
                                                 <td colSpan={5} className="px-6 py-12 text-center text-slate-400 text-sm font-bold">
-                                                    Geen tijdregistraties gevonden. Voeg een nieuwe registratie toe.
+                                                    {hasActiveFilters 
+                                                        ? 'Geen registraties gevonden met de geselecteerde filters.' 
+                                                        : 'Geen tijdregistraties gevonden. Voeg een nieuwe registratie toe.'}
                                                 </td>
                                             </tr>
                                         ) : (
-                                            [...records].reverse().slice(0, 10).map(rec => {
+                                            filteredRecentRecords.map(rec => {
                                         const drv = drivers.find(d => d.id === rec.driver_id);
                                         const rt = fixedRoutes.find(r => r.id === rec.route_id);
                                         return (
@@ -871,7 +941,11 @@ const EditRecordModal: React.FC<EditRecordModalProps> = ({ record, drivers, fixe
                 </div>
                 <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
                     <button 
-                        onClick={() => onDelete(record.id)}
+                        onClick={() => {
+                            if (window.confirm(t.performance.modal.deleteConfirm)) {
+                                onDelete(record.id);
+                            }
+                        }}
                         className="text-red-500 text-xs font-bold uppercase tracking-widest hover:text-red-700 flex items-center gap-2 transition-colors"
                     >
                         <Trash2 size={16} /> {t.common.delete}

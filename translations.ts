@@ -75,7 +75,8 @@ export const translations = {
         windowEnd: 'Bloktijd Eind',
         dropTime: 'Lostijd (minuten)',
         chilled: 'Koel Containers',
-        frozen: 'Vries Containers'
+        frozen: 'Vries Containers',
+        confirmDelete: 'Weet je zeker dat je deze debiteur wilt verwijderen? Dit kan niet ongedaan worden gemaakt.'
       }
     },
     performance: {

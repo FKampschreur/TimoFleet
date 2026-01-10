@@ -232,7 +232,7 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, drivers, on
                 setSelectedVehicle(null);
             }} 
             onDelete={(id) => {
-                if (window.confirm("Zeker weten?")) {
+                if (window.confirm(t.vehicles.modal.confirmDelete)) {
                     onDeleteVehicle(id);
                     setSelectedVehicle(null);
                 }
@@ -634,7 +634,11 @@ const EditVehicleModal: React.FC<EditVehicleModalProps> = ({ vehicle, drivers, a
 
                 <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
                     <button 
-                        onClick={() => onDelete(form.id)}
+                        onClick={() => {
+                            if (window.confirm(t.vehicles.modal.confirmDelete)) {
+                                onDelete(form.id);
+                            }
+                        }}
                         className="text-red-500 text-xs font-bold uppercase tracking-widest hover:text-red-700 transition-colors flex items-center gap-1"
                     >
                         <Trash2 size={14} /> Verwijder Asset

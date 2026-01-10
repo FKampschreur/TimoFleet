@@ -264,7 +264,11 @@ const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, 
                                                 <Edit2 size={16} />
                                             </button>
                                             <button 
-                                                onClick={() => { if(window.confirm('Verwijderen?')) onDeleteDebtor(debtor.id); }} 
+                                                onClick={() => { 
+                                                    if(window.confirm(t.debtors.modal.confirmDelete)) {
+                                                        onDeleteDebtor(debtor.id);
+                                                    }
+                                                }} 
                                                 className="p-2 text-slate-300 hover:text-red-600 rounded-xl hover:bg-red-50 transition-all"
                                             >
                                                 <Trash2 size={16} />
