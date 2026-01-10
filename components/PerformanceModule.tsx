@@ -5,6 +5,7 @@ import { translations } from '../translations';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { TrendingUp, Clock, Calendar, User as UserIcon, Map, Plus, ArrowRight, Lightbulb, Trophy, AlertTriangle, Timer, Activity, Edit2, Trash2, X, Check, Save, Ban, RotateCcw, MessageSquareWarning, Filter } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
+import { formatDateNL } from '../utils/dateHelpers';
 
 interface PerformanceModuleProps {
     language: Language;
@@ -402,7 +403,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                         className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                                     >
                                         <option value="">Selecteer Route...</option>
-                                        {fixedRoutes.map(r => <option key={r.id} value={r.id}>{r.name} ({r.id})</option>)}
+                                        {fixedRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -465,7 +466,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                         const rt = fixedRoutes.find(r => r.id === rec.route_id);
                                         return (
                                             <tr key={rec.id} className={`hover:bg-slate-50/50 transition-colors ${rec.exclude_from_analysis ? 'opacity-60 bg-slate-50' : ''}`}>
-                                                <td className="px-6 py-3 text-sm font-bold text-slate-700">{rec.date}</td>
+                                                <td className="px-6 py-3 text-sm font-bold text-slate-700 whitespace-nowrap align-middle">{formatDateNL(rec.date)}</td>
                                                 <td className="px-6 py-3">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-black">
@@ -475,8 +476,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-3 text-xs font-medium text-slate-600">
-                                                    <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-bold uppercase mr-2">{rec.route_id}</span>
-                                                    {rt?.name}
+                                                    {rt?.name || rec.route_id}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono font-bold text-slate-900 text-sm">
                                                     {formatDuration(rec.duration_minutes)}
@@ -535,7 +535,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500 appearance-none"
                                 >
                                     <option value="">-- Kies een route --</option>
-                                    {fixedRoutes.map(r => <option key={r.id} value={r.id}>{r.name} ({r.id})</option>)}
+                                    {fixedRoutes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                 </select>
                             </div>
                         </div>
@@ -729,7 +729,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                             const rt = fixedRoutes.find(r => r.id === rec.route_id);
                                             return (
                                                 <tr key={rec.id} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4 text-sm font-bold text-slate-700">{rec.date}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-slate-700 whitespace-nowrap align-middle">{formatDateNL(rec.date)}</td>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center gap-2">
                                                             <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-black">
@@ -739,8 +739,7 @@ const PerformanceModule: React.FC<PerformanceModuleProps> = ({ language, drivers
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-xs font-medium text-slate-600">
-                                                        <span className="bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-bold uppercase mr-2">{rec.route_id}</span>
-                                                        {rt?.name}
+                                                        {rt?.name || rec.route_id}
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         {rec.remarks ? (

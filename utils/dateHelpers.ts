@@ -50,3 +50,15 @@ export const getWeekDays = (startOfWeek: Date): Date[] => {
     return d;
   });
 };
+
+/**
+ * Format date string (YYYY-MM-DD) naar Nederlandse notatie (DD-MM-YYYY)
+ */
+export const formatDateNL = (dateString: string): string => {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateString;
+};
