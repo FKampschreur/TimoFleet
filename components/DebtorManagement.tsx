@@ -417,7 +417,7 @@ const DebtorModal: React.FC<DebtorModalProps> = ({ debtor, fixedRoutes, isNew, o
                             <option value="">-- Geen Vaste Rit Geselecteerd --</option>
                             {fixedRoutes.map(route => (
                                 <option key={route.id} value={route.id}>
-                                    {route.id} - {route.name}
+                                    {route.name}
                                 </option>
                             ))}
                         </select>
