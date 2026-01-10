@@ -295,27 +295,46 @@ const VehicleCard: React.FC<{
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${vehicle.is_available ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 relative z-10">
                         <button 
-                            onClick={() => onEdit(vehicle)}
-                            className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onEdit(vehicle);
+                            }}
+                            className="text-slate-400 hover:text-indigo-600 transition-colors p-1 relative z-10"
                             title="Bewerken"
+                            type="button"
                         >
                             <Edit2 size={16} />
                         </button>
                         <button 
-                            onClick={async (e) => {
+                            onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
-                                if (window.confirm(t.vehicles.modal.confirmDelete)) {
+                                
+                                if (!onDelete) {
+                                    console.error('onDelete function is not defined');
+                                    alert('Verwijder functie is niet beschikbaar');
+                                    return;
+                                }
+                                
+                                if (window.confirm(t.fleet.modal.confirmDelete)) {
                                     try {
-                                        await onDelete(vehicle.id);
-                                    } catch (error) {
-                                        console.error('Error deleting vehicle:', error);
-                                        alert('Fout bij verwijderen van voertuig. Probeer het opnieuw.');
+                                        const result = onDelete(vehicle.id);
+                                        if (result && typeof result.then === 'function') {
+                                            result.catch((error: any) => {
+                                                console.error('Error deleting vehicle:', error);
+                                                alert('Fout bij verwijderen van voertuig: ' + (error?.message || 'Onbekende fout'));
+                                            });
+                                        }
+                                    } catch (error: any) {
+                                        console.error('Error in delete handler:', error);
+                                        alert('Fout bij verwijderen van voertuig: ' + (error?.message || 'Onbekende fout'));
                                     }
                                 }
                             }}
-                            className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                            className="text-slate-400 hover:text-red-600 transition-colors p-1.5 relative z-10 cursor-pointer hover:bg-red-50 rounded active:scale-95"
                             title="Verwijderen"
                             type="button"
                         >
@@ -656,7 +675,7 @@ const EditVehicleModal: React.FC<EditVehicleModalProps> = ({ vehicle, drivers, a
                 <div className="px-8 py-6 border-t border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
                     <button 
                         onClick={() => {
-                            if (window.confirm(t.vehicles.modal.confirmDelete)) {
+                            if (window.confirm(t.fleet.modal.confirmDelete)) {
                                 onDelete(form.id);
                             }
                         }}
