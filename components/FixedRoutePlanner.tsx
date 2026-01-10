@@ -300,7 +300,7 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
                                         <div className="flex justify-between items-start">
                                             <div className="flex items-start gap-4">
                                                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm font-black text-xs shrink-0 ${route.color}`}>
-                                                    {route.id.split('-')[1]}
+                                                    {route.name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase() || 'RT'}
                                                 </div>
                                                 <div>
                                                     <div className="text-sm font-bold text-slate-900">{route.name}</div>

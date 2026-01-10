@@ -247,7 +247,7 @@ const DebtorManagement: React.FC<DebtorManagementProps> = ({ language, debtors, 
                                         {linkedRoute ? (
                                             <div className="flex items-center gap-2">
                                                 <div className={`w-6 h-6 rounded flex items-center justify-center text-white text-[9px] font-black ${linkedRoute.color}`}>
-                                                    {linkedRoute.id.split('-')[1]}
+                                                    {linkedRoute.name.replace(/[^a-zA-Z0-9]/g, '').substring(0, 2).toUpperCase() || 'RT'}
                                                 </div>
                                                 <span className="text-xs font-bold text-slate-700">{linkedRoute.name}</span>
                                             </div>
