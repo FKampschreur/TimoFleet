@@ -232,10 +232,8 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, drivers, on
                 setSelectedVehicle(null);
             }} 
             onDelete={(id) => {
-                if (window.confirm(t.vehicles.modal.confirmDelete)) {
-                    onDeleteVehicle(id);
-                    setSelectedVehicle(null);
-                }
+                onDeleteVehicle(id);
+                setSelectedVehicle(null);
             }}
             language={language}
         />
