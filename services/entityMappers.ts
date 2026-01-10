@@ -6,7 +6,7 @@ import { Vehicle, Driver, Debtor, FixedRoute, LicenseType } from '../types';
  * Converteer Vehicle naar database formaat (snake_case)
  */
 export const mapVehicleToDb = (vehicle: Vehicle, orgId: string): any => {
-  return {
+  const dbData: any = {
     organization_id: orgId,
     license_plate: vehicle.license_plate || null,
     brand: vehicle.brand || null,
@@ -24,6 +24,13 @@ export const mapVehicleToDb = (vehicle: Vehicle, orgId: string): any => {
     monthly_fixed_cost: vehicle.monthly_fixed_cost,
     assigned_driver_id: vehicle.assigned_driver_id || null
   };
+  
+  // id is verplicht voor vehicles (TEXT PRIMARY KEY, geen auto-generated UUID)
+  if (vehicle.id) {
+    dbData.id = vehicle.id;
+  }
+  
+  return dbData;
 };
 
 /**
