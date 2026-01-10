@@ -197,7 +197,7 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, drivers, on
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {groupedVehicles.heavy.map(v => (
-                    <VehicleCard key={v.id} vehicle={v} drivers={drivers} onToggle={onToggleAvailability} onEdit={setSelectedVehicle} language={language} />
+                    <VehicleCard key={v.id} vehicle={v} drivers={drivers} onToggle={onToggleAvailability} onEdit={setSelectedVehicle} onDelete={onDeleteVehicle} language={language} />
                 ))}
             </div>
         </div>
@@ -210,7 +210,7 @@ const FleetManagement: React.FC<FleetManagementProps> = ({ vehicles, drivers, on
             </div>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {groupedVehicles.light.map(v => (
-                    <VehicleCard key={v.id} vehicle={v} drivers={drivers} onToggle={onToggleAvailability} onEdit={setSelectedVehicle} language={language} />
+                    <VehicleCard key={v.id} vehicle={v} drivers={drivers} onToggle={onToggleAvailability} onEdit={setSelectedVehicle} onDelete={onDeleteVehicle} language={language} />
                 ))}
             </div>
         </div>
@@ -247,8 +247,10 @@ const VehicleCard: React.FC<{
     drivers: Driver[],
     onToggle: (id: string) => void, 
     onEdit: (v: Vehicle) => void,
+    onDelete: (id: string) => void,
     language: Language 
-}> = ({ vehicle, drivers, onToggle, onEdit, language }) => {
+}> = ({ vehicle, drivers, onToggle, onEdit, onDelete, language }) => {
+    const t = translations[language];
     // Fix: use snake_case properties
     const isElectric = vehicle.fuel_type === FuelType.ELECTRIC;
     const isTruck = vehicle.type === VehicleType.TRUCK;
@@ -293,12 +295,26 @@ const VehicleCard: React.FC<{
                             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${vehicle.is_available ? 'translate-x-6' : 'translate-x-1'}`} />
                         </button>
                     </div>
-                    <button 
-                        onClick={() => onEdit(vehicle)}
-                        className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
-                    >
-                        <Edit2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button 
+                            onClick={() => onEdit(vehicle)}
+                            className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
+                            title="Bewerken"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                        <button 
+                            onClick={() => {
+                                if (window.confirm(t.vehicles.modal.confirmDelete)) {
+                                    onDelete(vehicle.id);
+                                }
+                            }}
+                            className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                            title="Verwijderen"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
                 </div>
             </div>
 
