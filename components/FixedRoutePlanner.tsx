@@ -365,9 +365,22 @@ const FixedRoutePlanner: React.FC<FixedRoutePlannerProps> = ({ language, drivers
                                         return (
                                             <td key={i} className={`p-2 border-l border-slate-50 text-center relative ${isWeekend ? 'bg-slate-50/30' : ''}`}>
                                                 {!isActiveDay ? (
-                                                    <div className="w-full h-16 rounded-xl border border-slate-100 bg-slate-100/50 flex items-center justify-center opacity-50 relative overflow-hidden">
+                                                    <div className="w-full h-16 rounded-xl border border-slate-100 bg-slate-100/50 flex items-center justify-center relative overflow-hidden">
                                                         <div className="absolute inset-0 pattern-diagonal-lines opacity-10"></div>
                                                         <span className="text-[10px] font-bold text-slate-300 transform -rotate-12 select-none">Vrij</span>
+                                                        {/* Toon aantal klanten als er klanten zijn die op deze dag geleverd willen hebben */}
+                                                        {stopCount > 0 && (
+                                                            <div 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleShowDayDetails(route.id, day);
+                                                                }}
+                                                                className="absolute bottom-1 right-1 z-20 px-1.5 py-0.5 rounded text-[8px] font-black flex items-center gap-1 bg-orange-100 text-orange-600 border border-orange-200 shadow-sm transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                                                                title={`${stopCount} klant(en) willen op deze dag geleverd hebben, maar route rijdt niet`}
+                                                            >
+                                                                <Package size={8} /> {stopCount}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <button 
